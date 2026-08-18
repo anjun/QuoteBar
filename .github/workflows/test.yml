@@ -3,13 +3,28 @@ name: test
 on:
   pull_request:
   push:
+    branches:
+      - "**"
+    tags-ignore:
+      - "v*"
     paths-ignore:
       - "**/*.md"
 
 jobs:
   test:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      - name: Select Xcode 16
+        run: |
+          for app in /Applications/Xcode_16.4.app /Applications/Xcode_16.3.app /Applications/Xcode_16.2.app /Applications/Xcode_16.app /Applications/Xcode.app; do
+            if [ -d "$app" ]; then
+              sudo xcode-select -s "$app/Contents/Developer"
+              xcodebuild -version
+              exit 0
+            fi
+          done
+          echo "Xcode 16+ not found"; ls /Applications
+          exit 1
       - name: Run tests
         run: make test

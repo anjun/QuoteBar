@@ -17,16 +17,23 @@ SIZE = 1024
 FILL = (248, 249, 251, 255)
 MARK = (226, 52, 45, 255)
 FONT = Path("/System/Library/Fonts/SFNSRounded.ttf")
+CORNER = int(SIZE * 0.223)
 
 
 def draw_master() -> Image.Image:
-    img = Image.new("RGBA", (SIZE, SIZE), FILL)
+    img = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
-    font = ImageFont.truetype(str(FONT), 560)
+    inset = 1
+    draw.rounded_rectangle(
+        [inset, inset, SIZE - 1 - inset, SIZE - 1 - inset],
+        radius=CORNER,
+        fill=FILL,
+    )
+    font = ImageFont.truetype(str(FONT), 340)
     letter = "Q"
     left, top, right, bottom = draw.textbbox((0, 0), letter, font=font)
     x = (SIZE - (right - left)) / 2 - left
-    y = (SIZE - (bottom - top)) / 2 - top - 18
+    y = (SIZE - (bottom - top)) / 2 - top - 8
     draw.text((x, y), letter, font=font, fill=MARK)
     return img
 
