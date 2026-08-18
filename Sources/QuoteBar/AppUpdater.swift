@@ -18,14 +18,18 @@ enum AppUpdater {
             }
             let shouldInstall = await confirm(
                 "发现新版本 \(release.version.display)",
-                "当前 \(current.display)。下载 DMG 并覆盖安装后会自动重启。"
+                "当前 \(current.display)。下载安装包时会显示进度，完成后自动重启。"
             )
-            guard shouldInstall else { return }
+            guard shouldInstall else {
+                await restoreAccessory()
+                return
+            }
             guard let dmg = release.dmg else {
                 throw GitHubReleaseError.missingDMG
             }
-            try await apply(dmg: dmg, token: token)
+            try await apply(dmg: dmg, version: release.version.display, token: token)
         } catch {
+            await restoreAccessory()
             if interactive {
                 await alert("检查更新失败", error.localizedDescription)
             }
@@ -56,33 +60,52 @@ enum AppUpdater {
         return try GitHubReleaseParser.parse(data)
     }
 
-    static func apply(dmg asset: GitHubReleaseDMG, token: String) async throws {
-        let dmg = FileManager.default.temporaryDirectory.appendingPathComponent(asset.name)
-        try await downloadAsset(asset.apiURL, token: token, to: dmg)
-        let script = relaunchScript(dmg: dmg)
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/bash")
-        process.arguments = ["-c", script]
-        try process.run()
-        await MainActor.run {
-            NSApplication.shared.terminate(nil)
+    static func apply(dmg asset: GitHubReleaseDMG, version: String, token: String) async throws {
+        let progress = await MainActor.run { startProgress(version: version) }
+        do {
+            let dmg = FileManager.default.temporaryDirectory.appendingPathComponent(asset.name)
+            try await UpdateDownload.file(from: asset.apiURL, token: token, to: dmg) { fraction in
+                Task { @MainActor in
+                    progress.update(fraction: fraction, status: "正在下载安装包")
+                }
+            }
+            await MainActor.run {
+                progress.update(fraction: 1, status: "正在下载安装包")
+                progress.markInstalling()
+            }
+            try launchInstaller(dmg: dmg)
+            await MainActor.run {
+                NSApplication.shared.terminate(nil)
+            }
+        } catch {
+            await MainActor.run { progress.close() }
+            throw error
         }
     }
 
-    static func downloadAsset(_ url: URL, token: String, to destination: URL) async throws {
-        var request = URLRequest(url: url)
-        request.cachePolicy = .reloadIgnoringLocalCacheData
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/octet-stream", forHTTPHeaderField: "Accept")
-        request.setValue("QuoteBar", forHTTPHeaderField: "User-Agent")
-        let (temp, response) = try await URLSession.shared.download(for: request)
-        if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-            throw UpdateError.http(http.statusCode)
+    static func launchInstaller(dmg: URL) throws {
+        let script = UpdateInstaller.script(
+            dmg: dmg,
+            destination: installDestination(),
+            waitPID: ProcessInfo.processInfo.processIdentifier
+        )
+        let directory = FileManager.default.temporaryDirectory
+        let scriptURL = directory.appendingPathComponent("quotebar-update.sh")
+        let logURL = directory.appendingPathComponent("quotebar-update.log")
+        try script.write(to: scriptURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
+        if !FileManager.default.fileExists(atPath: logURL.path) {
+            FileManager.default.createFile(atPath: logURL.path, contents: nil)
         }
-        if FileManager.default.fileExists(atPath: destination.path) {
-            try FileManager.default.removeItem(at: destination)
-        }
-        try FileManager.default.moveItem(at: temp, to: destination)
+        let launch = UpdateInstaller.detachedLaunch(script: scriptURL, log: logURL)
+        let process = Process()
+        process.executableURL = launch.executable
+        process.arguments = launch.arguments
+        process.currentDirectoryURL = directory
+        process.standardInput = FileHandle.nullDevice
+        process.standardOutput = try FileHandle(forWritingTo: logURL)
+        process.standardError = try FileHandle(forWritingTo: logURL)
+        try process.run()
     }
 
     static func installDestination() -> URL {
@@ -93,56 +116,64 @@ enum AppUpdater {
         return URL(fileURLWithPath: "/Applications/QuoteBar.app")
     }
 
-    static func relaunchScript(dmg: URL) -> String {
-        let dest = installDestination().path
-        let destQ = shellQuote(dest)
-        let dmgQ = shellQuote(dmg.path)
-        return """
-        set -e
-        sleep 1
-        while pgrep -x QuoteBar >/dev/null 2>&1; do sleep 0.2; done
-        MOUNT="$(hdiutil attach -nobrowse -readonly \(dmgQ) | awk '/\\/Volumes\\//{print $NF; exit}')"
-        APP="$(find "$MOUNT" -maxdepth 2 -name 'QuoteBar.app' -type d | head -n 1)"
-        if [ -z "$APP" ]; then
-          hdiutil detach "$MOUNT" >/dev/null 2>&1 || true
-          exit 1
-        fi
-        TMP="$(mktemp -d)/QuoteBar.app"
-        rm -rf "$TMP"
-        cp -R "$APP" "$TMP"
-        hdiutil detach "$MOUNT" >/dev/null 2>&1 || true
-        rm -rf \(destQ)
-        mkdir -p "$(dirname \(destQ))"
-        cp -R "$TMP" \(destQ)
-        xattr -dr com.apple.quarantine \(destQ) || true
-        open \(destQ)
-        rm -f \(dmgQ)
-        """
+    @MainActor
+    static func startProgress(version: String) -> UpdateProgressPanel {
+        NSApp.setActivationPolicy(.regular)
+        dismissBlockingWindows()
+        NSApp.activate(ignoringOtherApps: true)
+        let panel = UpdateProgressPanel(version: version)
+        panel.show()
+        return panel
     }
 
-    static func shellQuote(_ value: String) -> String {
-        "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    @MainActor
+    static func dismissBlockingWindows() {
+        if NSApp.modalWindow != nil {
+            NSApp.stopModal()
+        }
+        for window in NSApp.windows {
+            let name = NSStringFromClass(type(of: window))
+            if name.contains("Alert") || name.contains("MenuBarExtra") || name.contains("StatusBar") {
+                window.orderOut(nil)
+            }
+        }
+    }
+
+    @MainActor
+    static func restoreAccessory() {
+        NSApp.setActivationPolicy(.accessory)
     }
 
     @MainActor
     static func alert(_ title: String, _ message: String) {
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = message
         alert.alertStyle = .informational
         alert.addButton(withTitle: "好")
         alert.runModal()
+        alert.window.close()
+        restoreAccessory()
     }
 
     @MainActor
     static func confirm(_ title: String, _ message: String) -> Bool {
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = message
         alert.alertStyle = .informational
         alert.addButton(withTitle: "更新")
         alert.addButton(withTitle: "稍后")
-        return alert.runModal() == .alertFirstButtonReturn
+        let result = alert.runModal() == .alertFirstButtonReturn
+        alert.window.close()
+        if NSApp.modalWindow != nil {
+            NSApp.stopModal()
+        }
+        return result
     }
 }
 
