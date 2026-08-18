@@ -25,8 +25,20 @@ struct MenuBarLabel: View {
 
     var body: some View {
         if let quote = model.carouselQuote {
-            Text(QuoteFormat.menuBarTitle(quote))
-                .monospacedDigit()
+            HStack(spacing: 3) {
+                if model.showsPinnedMark {
+                    Image(systemName: "pin.fill")
+                        .font(.system(size: 8, weight: .semibold))
+                        .accessibilityHidden(true)
+                }
+                Text(QuoteFormat.menuBarTitle(quote))
+                    .monospacedDigit()
+            }
+            .accessibilityLabel(
+                model.showsPinnedMark
+                    ? "已固定 \(QuoteFormat.menuBarTitle(quote))"
+                    : QuoteFormat.menuBarTitle(quote)
+            )
         } else if model.watchlist.items.isEmpty {
             Text("行情")
         } else if model.openCarouselItems.isEmpty {

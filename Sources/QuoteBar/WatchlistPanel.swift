@@ -176,7 +176,7 @@ struct WatchlistPanel: View {
                 if editingSymbol != nil, editingSymbol != symbol {
                     editingSymbol = nil
                 }
-                model.pin(symbol)
+                model.togglePin(symbol)
             } label: {
                 body
             }
@@ -242,6 +242,11 @@ struct WatchlistPanel: View {
             }
         }
         .contextMenu {
+            if pinned {
+                Button("取消固定") { model.unpin() }
+            } else {
+                Button("固定到状态栏") { model.pin(symbol) }
+            }
             Button("上移") { model.move(symbol, by: -1) }
                 .disabled(!model.canMove(symbol, by: -1))
             Button("下移") { model.move(symbol, by: 1) }
@@ -267,10 +272,18 @@ struct WatchlistPanel: View {
                 .padding(.trailing, 7)
 
             VStack(alignment: .leading, spacing: 1) {
-                Text(quote?.name ?? symbol.code)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    Text(quote?.name ?? symbol.code)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    if model.pinnedSymbol == symbol {
+                        Image(systemName: "pin.fill")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .accessibilityLabel("已固定到状态栏")
+                    }
+                }
                 Text(symbol.code)
                     .font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(.secondary)

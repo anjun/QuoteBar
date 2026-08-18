@@ -34,20 +34,28 @@ final class AppModel: ObservableObject {
         self.refreshSeconds = RefreshPolicy.clamp(refreshSeconds)
         self.carouselSeconds = carouselSeconds
         self.watchlist = WatchlistPersistence.load(from: defaults)
+        self.pinnedSymbol = PinnedSymbolPersistence.load(from: defaults)
     }
 
     var openCarouselItems: [SymbolID] {
         CarouselSelection.indices(from: watchlist.items)
     }
 
+    var statusBarSymbol: SymbolID? {
+        StatusBarSelection.symbol(
+            pinned: pinnedSymbol,
+            watchlist: watchlist.items,
+            openIndices: openCarouselItems,
+            carouselIndex: carouselIndex
+        )
+    }
+
     var carouselQuote: Quote? {
-        let items = openCarouselItems
-        guard !items.isEmpty else { return nil }
-        if let pinnedSymbol, items.contains(pinnedSymbol), let quote = quotes[pinnedSymbol] {
-            return quote
-        }
-        let index = carouselIndex % items.count
-        return quotes[items[index]]
+        statusBarSymbol.flatMap { quotes[$0] }
+    }
+
+    var showsPinnedMark: Bool {
+        StatusBarSelection.isPinnedDisplay(pinned: pinnedSymbol, watchlist: watchlist.items)
     }
 
     func start() {
@@ -83,7 +91,7 @@ final class AppModel: ObservableObject {
         watchlist.remove(symbol)
         quotes[symbol] = nil
         if pinnedSymbol == symbol {
-            pinnedSymbol = nil
+            unpin()
         }
         persist()
     }
@@ -118,13 +126,20 @@ final class AppModel: ObservableObject {
     }
 
     func pin(_ symbol: SymbolID) {
+        pinnedSymbol = symbol
+        persistPin()
+    }
+
+    func unpin() {
+        pinnedSymbol = nil
+        persistPin()
+    }
+
+    func togglePin(_ symbol: SymbolID) {
         if pinnedSymbol == symbol {
-            pinnedSymbol = nil
+            unpin()
         } else {
-            pinnedSymbol = symbol
-            if let index = openCarouselItems.firstIndex(of: symbol) {
-                carouselIndex = index
-            }
+            pin(symbol)
         }
     }
 
@@ -152,6 +167,10 @@ final class AppModel: ObservableObject {
         WatchlistPersistence.save(watchlist, to: defaults)
     }
 
+    private func persistPin() {
+        PinnedSymbolPersistence.save(pinnedSymbol, to: defaults)
+    }
+
     private func refreshLoop() async {
         while !Task.isCancelled {
             try? await Task.sleep(nanoseconds: UInt64(refreshSeconds * 1_000_000_000))
@@ -163,8 +182,11 @@ final class AppModel: ObservableObject {
         while !Task.isCancelled {
             try? await Task.sleep(nanoseconds: UInt64(carouselSeconds * 1_000_000_000))
             let items = openCarouselItems
-            let pinIsOpenIndex = pinnedSymbol.map { items.contains($0) } ?? false
-            guard !pinIsOpenIndex, items.count > 1 else { continue }
+            guard StatusBarSelection.shouldAdvance(
+                pinned: pinnedSymbol,
+                watchlist: watchlist.items,
+                openIndexCount: items.count
+            ) else { continue }
             carouselIndex = (carouselIndex + 1) % items.count
         }
     }
