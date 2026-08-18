@@ -27,7 +27,21 @@ import Testing
     let release = try GitHubReleaseParser.parse(data)
     #expect(release.tag == "v0.2.0")
     #expect(release.version == SemanticVersion("0.2.0"))
-    #expect(release.dmgAssetID == 987654321)
-    #expect(release.dmgName == "QuoteBar-0.2.0.dmg")
-    #expect(release.assetAPIURL.host == "api.github.com")
+    #expect(release.dmg?.id == 987654321)
+    #expect(release.dmg?.name == "QuoteBar-0.2.0.dmg")
+    #expect(release.dmg?.apiURL.host == "api.github.com")
+}
+
+@Test func githubReleaseParserReadsVersionWhenDMGIsStillMissing() throws {
+    let data = try FixtureLoader.data("github-release-no-dmg.json")
+    let release = try GitHubReleaseParser.parse(data)
+    #expect(release.tag == "v0.1.4")
+    #expect(release.version == SemanticVersion("0.1.4"))
+    #expect(release.dmg == nil)
+}
+
+@Test func githubReleaseErrorsHaveChineseDescriptions() {
+    #expect(GitHubReleaseError.missingDMG.errorDescription == "新版本还没有安装包，稍后再检查更新")
+    #expect(GitHubReleaseError.invalidTag("oops").errorDescription == "版本标签无效：oops")
+    #expect(GitHubReleaseError.invalidAssetURL.errorDescription == "安装包地址无效")
 }

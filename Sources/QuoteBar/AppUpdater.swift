@@ -21,7 +21,10 @@ enum AppUpdater {
                 "当前 \(current.display)。下载 DMG 并覆盖安装后会自动重启。"
             )
             guard shouldInstall else { return }
-            try await apply(release: release, token: token)
+            guard let dmg = release.dmg else {
+                throw GitHubReleaseError.missingDMG
+            }
+            try await apply(dmg: dmg, token: token)
         } catch {
             if interactive {
                 await alert("检查更新失败", error.localizedDescription)
@@ -42,6 +45,7 @@ enum AppUpdater {
 
     static func fetchLatest(token: String) async throws -> GitHubRelease {
         var request = URLRequest(url: URL(string: "https://api.github.com/repos/\(repo)/releases/latest")!)
+        request.cachePolicy = .reloadIgnoringLocalCacheData
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("QuoteBar", forHTTPHeaderField: "User-Agent")
@@ -52,9 +56,9 @@ enum AppUpdater {
         return try GitHubReleaseParser.parse(data)
     }
 
-    static func apply(release: GitHubRelease, token: String) async throws {
-        let dmg = FileManager.default.temporaryDirectory.appendingPathComponent(release.dmgName)
-        try await downloadAsset(release.assetAPIURL, token: token, to: dmg)
+    static func apply(dmg asset: GitHubReleaseDMG, token: String) async throws {
+        let dmg = FileManager.default.temporaryDirectory.appendingPathComponent(asset.name)
+        try await downloadAsset(asset.apiURL, token: token, to: dmg)
         let script = relaunchScript(dmg: dmg)
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
@@ -67,6 +71,7 @@ enum AppUpdater {
 
     static func downloadAsset(_ url: URL, token: String, to destination: URL) async throws {
         var request = URLRequest(url: url)
+        request.cachePolicy = .reloadIgnoringLocalCacheData
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/octet-stream", forHTTPHeaderField: "Accept")
         request.setValue("QuoteBar", forHTTPHeaderField: "User-Agent")

@@ -38,6 +38,14 @@ enum StatusItemRightClick {
 
     private static func showQuitMenu(with event: NSEvent) {
         let menu = NSMenu()
+        let version = NSMenuItem(
+            title: "QuoteBar \(AppVersion.marketing)",
+            action: nil,
+            keyEquivalent: ""
+        )
+        version.isEnabled = false
+        menu.addItem(version)
+        menu.addItem(.separator())
         let update = NSMenuItem(
             title: "检查更新",
             action: #selector(StatusItemMenuTarget.checkForUpdates),
