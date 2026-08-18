@@ -12,6 +12,48 @@ import Testing
     #expect(list.items.contains { $0.kind == .index && $0.market == .us && $0.code == "NDX" })
 }
 
+@Test func groupsCollectSameMarketTogetherPreservingRelativeOrder() {
+    var list = Watchlist(items: [
+        .shIndex("000001"),
+        .hkIndex("HSI"),
+        .usIndex("NDX"),
+        .shETF("510300"),
+        .usETF("SPY"),
+        .shStock("002714"),
+    ])
+    let groups = list.groups()
+    #expect(groups.map(\.family) == [.cn, .hk, .us])
+    #expect(groups[0].items.map(\.code) == ["000001", "510300", "002714"])
+    #expect(groups[1].items.map(\.code) == ["HSI"])
+    #expect(groups[2].items.map(\.code) == ["NDX", "SPY"])
+}
+
+@Test func moveWithinAShareGroupDoesNotSplitTheGroup() {
+    var list = Watchlist(items: [
+        .shIndex("000001"),
+        .hkIndex("HSI"),
+        .shStock("002714"),
+        .szIndex("399001"),
+    ])
+    list.move(in: .cn, from: IndexSet(integer: 2), to: 1)
+    #expect(list.groups()[0].items.map(\.code) == ["000001", "399001", "002714"])
+    #expect(list.items.map(\.code) == ["000001", "399001", "002714", "HSI"])
+}
+
+@Test func moveSymbolUpAndDownStaysInsideMarket() {
+    var list = Watchlist(items: [
+        .shIndex("000001"),
+        .shStock("002714"),
+        .hkIndex("HSI"),
+    ])
+    list.move(.shStock("002714"), by: -1)
+    #expect(list.groups()[0].items.map(\.code) == ["002714", "000001"])
+    list.move(.shStock("002714"), by: -1)
+    #expect(list.groups()[0].items.map(\.code) == ["002714", "000001"])
+    list.move(.shStock("002714"), by: 1)
+    #expect(list.groups()[0].items.map(\.code) == ["000001", "002714"])
+}
+
 @Test func watchlistAddAndRemoveKeepUniqueOrder() {
     var list = Watchlist(items: [SymbolID.shIndex("000001")])
     list.add(SymbolID.hkStock("00700"))

@@ -11,7 +11,10 @@ struct QuoteBarApp: App {
             WatchlistPanel(model: model)
         } label: {
             MenuBarLabel(model: model)
-                .onAppear { model.start() }
+                .onAppear {
+                    model.start()
+                    StatusItemRightClick.install()
+                }
         }
         .menuBarExtraStyle(.window)
     }
@@ -26,6 +29,8 @@ struct MenuBarLabel: View {
                 .monospacedDigit()
         } else if model.watchlist.items.isEmpty {
             Text("行情")
+        } else if model.openCarouselItems.isEmpty {
+            Text("休市")
         } else {
             Text("行情 …")
         }

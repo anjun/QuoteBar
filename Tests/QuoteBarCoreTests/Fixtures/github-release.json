@@ -1,0 +1,20 @@
+{
+  "tag_name": "v0.2.0",
+  "name": "QuoteBar v0.2.0",
+  "assets": [
+    {
+      "id": 987654321,
+      "name": "QuoteBar-0.2.0.dmg",
+      "content_type": "application/x-apple-diskimage",
+      "url": "https://api.github.com/repos/anjun/QuoteBar/releases/assets/987654321",
+      "browser_download_url": "https://github.com/anjun/QuoteBar/releases/download/v0.2.0/QuoteBar-0.2.0.dmg"
+    },
+    {
+      "id": 111,
+      "name": "checksums.txt",
+      "content_type": "text/plain",
+      "url": "https://api.github.com/repos/anjun/QuoteBar/releases/assets/111",
+      "browser_download_url": "https://github.com/anjun/QuoteBar/releases/download/v0.2.0/checksums.txt"
+    }
+  ]
+}

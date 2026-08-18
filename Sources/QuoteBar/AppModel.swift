@@ -27,7 +27,7 @@ final class AppModel: ObservableObject {
         service: QuoteService = QuoteService(),
         defaults: UserDefaults = .standard,
         refreshSeconds: TimeInterval = RefreshPolicy.defaultSeconds,
-        carouselSeconds: TimeInterval = 3
+        carouselSeconds: TimeInterval = 8
     ) {
         self.service = service
         self.defaults = defaults
@@ -36,15 +36,18 @@ final class AppModel: ObservableObject {
         self.watchlist = WatchlistPersistence.load(from: defaults)
     }
 
+    var openCarouselItems: [SymbolID] {
+        CarouselSelection.indices(from: watchlist.items)
+    }
+
     var carouselQuote: Quote? {
-        let items = watchlist.items
+        let items = openCarouselItems
         guard !items.isEmpty else { return nil }
-        if let pinnedSymbol, let quote = quotes[pinnedSymbol] {
+        if let pinnedSymbol, items.contains(pinnedSymbol), let quote = quotes[pinnedSymbol] {
             return quote
         }
         let index = carouselIndex % items.count
-        let symbol = items[index]
-        return quotes[symbol]
+        return quotes[items[index]]
     }
 
     func start() {
@@ -54,6 +57,7 @@ final class AppModel: ObservableObject {
         Task { await refresh() }
         Task { await refreshLoop() }
         Task { await carouselLoop() }
+        Task { await AppUpdater.check(interactive: false) }
     }
 
     func refresh() async {
@@ -84,12 +88,41 @@ final class AppModel: ObservableObject {
         persist()
     }
 
+    func move(in family: MarketFamily, from offsets: IndexSet, to destination: Int) {
+        watchlist.move(in: family, from: offsets, to: destination)
+        persist()
+    }
+
+    func move(_ symbol: SymbolID, by offset: Int) {
+        watchlist.move(symbol, by: offset)
+        persist()
+    }
+
+    func canMove(_ symbol: SymbolID, by offset: Int) -> Bool {
+        let group = watchlist.items.filter { $0.market.family == symbol.market.family }
+        guard let index = group.firstIndex(of: symbol) else { return false }
+        return group.indices.contains(index + offset)
+    }
+
+    @discardableResult
+    func move(_ symbol: SymbolID, before target: SymbolID) -> Bool {
+        guard symbol != target, symbol.market.family == target.market.family else { return false }
+        let family = symbol.market.family
+        let group = watchlist.items.filter { $0.market.family == family }
+        guard let from = group.firstIndex(of: symbol),
+              let to = group.firstIndex(of: target) else { return false }
+        let destination = to > from ? to + 1 : to
+        watchlist.move(in: family, from: IndexSet(integer: from), to: destination)
+        persist()
+        return true
+    }
+
     func pin(_ symbol: SymbolID) {
         if pinnedSymbol == symbol {
             pinnedSymbol = nil
         } else {
             pinnedSymbol = symbol
-            if let index = watchlist.items.firstIndex(of: symbol) {
+            if let index = openCarouselItems.firstIndex(of: symbol) {
                 carouselIndex = index
             }
         }
@@ -129,8 +162,10 @@ final class AppModel: ObservableObject {
     private func carouselLoop() async {
         while !Task.isCancelled {
             try? await Task.sleep(nanoseconds: UInt64(carouselSeconds * 1_000_000_000))
-            guard pinnedSymbol == nil, watchlist.items.count > 1 else { continue }
-            carouselIndex = (carouselIndex + 1) % watchlist.items.count
+            let items = openCarouselItems
+            let pinIsOpenIndex = pinnedSymbol.map { items.contains($0) } ?? false
+            guard !pinIsOpenIndex, items.count > 1 else { continue }
+            carouselIndex = (carouselIndex + 1) % items.count
         }
     }
 }
@@ -157,16 +192,8 @@ enum QuoteFormat {
     }
 
     static func menuBarTitle(_ quote: Quote) -> String {
-        "\(quote.shortDisplayName) \(price(quote.last)) \(percent(quote.changePercent))"
+        "\(quote.shortDisplayName) \(percent(quote.changePercent))"
     }
 }
 
-extension QuoteColorSign {
-    var color: Color {
-        switch self {
-        case .up: return Color(red: 0.86, green: 0.18, blue: 0.18)
-        case .down: return Color(red: 0.10, green: 0.62, blue: 0.36)
-        case .flat: return .secondary
-        }
-    }
-}
+

@@ -20,6 +20,49 @@ public struct Watchlist: Equatable, Codable, Sendable {
     public mutating func remove(_ symbol: SymbolID) {
         items.removeAll { $0 == symbol }
     }
+
+    public func groups() -> [MarketGroup] {
+        MarketFamily.allCases.compactMap { family in
+            let grouped = items.filter { $0.market.family == family }
+            return grouped.isEmpty ? nil : MarketGroup(family: family, items: grouped)
+        }
+    }
+
+    public mutating func move(in family: MarketFamily, from offsets: IndexSet, to destination: Int) {
+        var buckets = Dictionary(uniqueKeysWithValues: MarketFamily.allCases.map { family in
+            (family, items.filter { $0.market.family == family })
+        })
+        if var group = buckets[family] {
+            group.moveItems(from: offsets, to: destination)
+            buckets[family] = group
+        }
+        items = MarketFamily.allCases.flatMap { buckets[$0] ?? [] }
+    }
+
+    public mutating func move(_ symbol: SymbolID, by offset: Int) {
+        let family = symbol.market.family
+        var group = items.filter { $0.market.family == family }
+        guard let index = group.firstIndex(of: symbol) else { return }
+        let target = index + offset
+        guard group.indices.contains(target) else { return }
+        group.swapAt(index, target)
+        let buckets = Dictionary(uniqueKeysWithValues: MarketFamily.allCases.map { itemFamily in
+            (itemFamily, itemFamily == family ? group : items.filter { $0.market.family == itemFamily })
+        })
+        items = MarketFamily.allCases.flatMap { buckets[$0] ?? [] }
+    }
+}
+
+private extension Array {
+    mutating func moveItems(from offsets: IndexSet, to destination: Int) {
+        let moving = offsets.sorted().compactMap { indices.contains($0) ? self[$0] : nil }
+        for index in offsets.sorted(by: >) where indices.contains(index) {
+            remove(at: index)
+        }
+        let adjusted = destination - offsets.filter { $0 < destination }.count
+        let insertAt = Swift.min(Swift.max(adjusted, 0), count)
+        insert(contentsOf: moving, at: insertAt)
+    }
 }
 
 public enum DefaultWatchlist {
