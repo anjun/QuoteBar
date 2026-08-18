@@ -10,6 +10,8 @@
 	<string>QuoteBar</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
+	<key>CFBundleIconName</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>app.quotebar.QuoteBar</string>
 	<key>CFBundleInfoDictionaryVersion</key>

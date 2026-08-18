@@ -36,6 +36,9 @@ cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
 if [[ -f "$ROOT/Resources/AppIcon.icns" ]]; then
   cp "$ROOT/Resources/AppIcon.icns" "$RES_DIR/AppIcon.icns"
 fi
+if [[ -f "$ROOT/Resources/Assets.car" ]]; then
+  cp "$ROOT/Resources/Assets.car" "$RES_DIR/Assets.car"
+fi
 echo -n 'APPL????' > "$APP/Contents/PkgInfo"
 
 echo "App: $APP"
