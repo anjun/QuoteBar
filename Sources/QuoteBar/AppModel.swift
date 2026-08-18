@@ -13,6 +13,7 @@ final class AppModel: ObservableObject {
     @Published var isSearching = false
     @Published var carouselIndex = 0
     @Published var pinnedSymbol: SymbolID?
+    @Published var titleStyle: MenuBarTitleStyle
     @Published var lastError: String?
 
     let service: QuoteService
@@ -35,6 +36,7 @@ final class AppModel: ObservableObject {
         self.carouselSeconds = carouselSeconds
         self.watchlist = WatchlistPersistence.load(from: defaults)
         self.pinnedSymbol = PinnedSymbolPersistence.load(from: defaults)
+        self.titleStyle = MenuBarTitleStylePersistence.load(from: defaults)
     }
 
     var openCarouselItems: [SymbolID] {
@@ -56,6 +58,17 @@ final class AppModel: ObservableObject {
 
     var showsPinnedMark: Bool {
         StatusBarSelection.isPinnedDisplay(pinned: pinnedSymbol, watchlist: watchlist.items)
+    }
+
+    var menuBarTitle: String? {
+        carouselQuote.map { QuoteFormat.menuBarTitle($0, style: titleStyle) }
+    }
+
+    var isCompactTitle: Bool { titleStyle == .compact }
+
+    func toggleCompactTitle() {
+        titleStyle = titleStyle == .compact ? .full : .compact
+        MenuBarTitleStylePersistence.save(titleStyle, to: defaults)
     }
 
     func start() {
@@ -213,8 +226,8 @@ enum QuoteFormat {
         return prefix + String(format: "%.2f%%", value)
     }
 
-    static func menuBarTitle(_ quote: Quote) -> String {
-        "\(quote.shortDisplayName) \(percent(quote.changePercent))"
+    static func menuBarTitle(_ quote: Quote, style: MenuBarTitleStyle = .full) -> String {
+        MenuBarTitle.text(name: quote.shortDisplayName, changePercent: quote.changePercent, style: style)
     }
 }
 

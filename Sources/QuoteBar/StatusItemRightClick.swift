@@ -4,7 +4,9 @@ enum StatusItemRightClick {
     private static var monitor: Any?
     private static let target = StatusItemMenuTarget()
 
-    static func install() {
+    @MainActor
+    static func install(model: AppModel) {
+        target.model = model
         guard monitor == nil else { return }
         monitor = NSEvent.addLocalMonitorForEvents(matching: [.rightMouseDown, .rightMouseUp, .leftMouseDown]) { event in
             guard isStatusItemClick(event) else { return event }
@@ -46,6 +48,15 @@ enum StatusItemRightClick {
         version.isEnabled = false
         menu.addItem(version)
         menu.addItem(.separator())
+        let compact = NSMenuItem(
+            title: "紧凑模式",
+            action: #selector(StatusItemMenuTarget.toggleCompactTitle),
+            keyEquivalent: ""
+        )
+        compact.target = target
+        compact.state = MainActor.assumeIsolated { target.model?.isCompactTitle ?? false } ? .on : .off
+        compact.toolTip = "缩短菜单栏标题，避免被刘海挡住"
+        menu.addItem(compact)
         let update = NSMenuItem(
             title: "检查更新",
             action: #selector(StatusItemMenuTarget.checkForUpdates),
@@ -71,7 +82,14 @@ enum StatusItemRightClick {
 }
 
 final class StatusItemMenuTarget: NSObject {
+    weak var model: AppModel?
+
     @objc func checkForUpdates() {
         Task { await AppUpdater.check(interactive: true) }
+    }
+
+    @MainActor
+    @objc func toggleCompactTitle() {
+        model?.toggleCompactTitle()
     }
 }
