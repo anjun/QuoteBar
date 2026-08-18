@@ -37,27 +37,7 @@ enum AppUpdater {
     }
 
     static func resolveToken() throws -> String {
-        if let env = ProcessInfo.processInfo.environment["GITHUB_TOKEN"], !env.isEmpty {
-            return env
-        }
-        if let env = ProcessInfo.processInfo.environment["GH_TOKEN"], !env.isEmpty {
-            return env
-        }
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = ["gh", "auth", "token"]
-        let out = Pipe()
-        let err = Pipe()
-        process.standardOutput = out
-        process.standardError = err
-        try process.run()
-        process.waitUntilExit()
-        let token = String(data: out.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard process.terminationStatus == 0, !token.isEmpty else {
-            throw UpdateError.missingGitHubToken
-        }
-        return token
+        try GitHubAuthToken.resolve()
     }
 
     static func fetchLatest(token: String) async throws -> GitHubRelease {
@@ -163,15 +143,12 @@ enum AppUpdater {
 
 enum UpdateError: LocalizedError {
     case invalidCurrentVersion(String)
-    case missingGitHubToken
     case http(Int)
 
     var errorDescription: String? {
         switch self {
         case .invalidCurrentVersion(let value):
             return "当前版本号无效：\(value)"
-        case .missingGitHubToken:
-            return "读不到 GitHub 凭证。请先在终端执行 gh auth login。"
         case .http(let code):
             return "GitHub 返回 HTTP \(code)"
         }
