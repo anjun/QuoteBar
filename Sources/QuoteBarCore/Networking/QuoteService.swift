@@ -1,0 +1,127 @@
+import Foundation
+
+public struct QuoteService: Sendable {
+    public var session: URLSession
+    public var timeout: TimeInterval
+
+    public init(session: URLSession = .shared, timeout: TimeInterval = 8) {
+        self.session = session
+        self.timeout = timeout
+    }
+
+    public func quotes(for symbols: [SymbolID]) async -> [SymbolID: Quote] {
+        guard !symbols.isEmpty else { return [:] }
+        let tencent = try? await fetchTencent(symbols)
+        let missingAfterTencent = symbols.filter { tencent?[$0] == nil }
+        let eastMoney = missingAfterTencent.isEmpty ? nil : try? await fetchEastMoney(missingAfterTencent)
+        let missingAfterEM = symbols.filter { id in
+            tencent?[id] == nil && eastMoney?[id] == nil && !id.isUSIndex
+        }
+        let sina = missingAfterEM.isEmpty ? nil : try? await fetchSina(missingAfterEM)
+        return QuoteBatchResolver.resolve(
+            symbols: symbols,
+            tencent: tencent,
+            eastMoney: eastMoney,
+            sina: sina
+        )
+    }
+
+    public func search(_ query: String) async -> [SearchHit] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        let tencent = try? await fetchTencentSearch(trimmed)
+        let eastMoney = (tencent?.isEmpty ?? true) ? try? await fetchEastMoneySearch(trimmed) : nil
+        return SearchResolver.resolve(query: trimmed, tencent: tencent, eastMoney: eastMoney)
+    }
+
+    func fetchTencent(_ symbols: [SymbolID]) async throws -> [SymbolID: Quote] {
+        let codes = symbols.map(ProviderCodes.tencentQuery).joined(separator: ",")
+        let url = try url("https://qt.gtimg.cn/q=\(codes)")
+        let data = try await get(url, headers: [:])
+        guard let body = TextDecode.string(from: data, preferringGBK: true) else {
+            throw QuoteServiceError.decode
+        }
+        let parsed = TencentQuoteParser.parse(body)
+        return Dictionary(uniqueKeysWithValues: parsed.map { ($0.symbol, $0) })
+    }
+
+    func fetchEastMoney(_ symbols: [SymbolID]) async throws -> [SymbolID: Quote] {
+        let secids = symbols.map(ProviderCodes.eastMoneySecID).joined(separator: ",")
+        let hosts = [
+            "https://push2.eastmoney.com",
+            "https://82.push2.eastmoney.com",
+            "https://80.push2.eastmoney.com",
+        ]
+        var lastError: Error = QuoteServiceError.empty
+        for host in hosts {
+            do {
+                let url = try url("\(host)/api/qt/ulist.np/get?fltt=2&invt=2&fields=f12,f13,f14,f2,f3,f4&secids=\(secids)")
+                let data = try await get(url, headers: [:])
+                let parsed = try EastMoneyQuoteParser.parse(data)
+                if !parsed.isEmpty {
+                    return Dictionary(uniqueKeysWithValues: parsed.map { ($0.symbol, $0) })
+                }
+            } catch {
+                lastError = error
+            }
+        }
+        throw lastError
+    }
+
+    func fetchSina(_ symbols: [SymbolID]) async throws -> [SymbolID: Quote] {
+        let codes = symbols.compactMap(ProviderCodes.sinaListCode)
+        guard !codes.isEmpty else { return [:] }
+        let url = try url("https://hq.sinajs.cn/list=\(codes.joined(separator: ","))")
+        let data = try await get(url, headers: ["Referer": "https://finance.sina.com.cn"])
+        guard let body = TextDecode.string(from: data, preferringGBK: true) else {
+            throw QuoteServiceError.decode
+        }
+        let parsed = SinaQuoteParser.parse(body)
+        return Dictionary(uniqueKeysWithValues: parsed.map { ($0.symbol, $0) })
+    }
+
+    func fetchTencentSearch(_ query: String) async throws -> [SearchHit] {
+        let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
+        let url = try url("https://smartbox.gtimg.cn/s3/?v=2&q=\(encoded)&t=all")
+        let data = try await get(url, headers: [:])
+        guard let body = TextDecode.string(from: data, preferringGBK: true) else {
+            throw QuoteServiceError.decode
+        }
+        return TencentSearchParser.parse(body)
+    }
+
+    func fetchEastMoneySearch(_ query: String) async throws -> [SearchHit] {
+        let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
+        let url = try url("https://searchapi.eastmoney.com/api/suggest/get?input=\(encoded)&type=14&token=D43BF722C8E33BDC906FB84D85E326E8")
+        let data = try await get(url, headers: [:])
+        return try EastMoneySearchParser.parse(data)
+    }
+
+    func get(_ url: URL, headers: [String: String]) async throws -> Data {
+        var request = URLRequest(url: url, timeoutInterval: timeout)
+        request.setValue(
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+            forHTTPHeaderField: "User-Agent"
+        )
+        for (key, value) in headers {
+            request.setValue(value, forHTTPHeaderField: key)
+        }
+        let (data, response) = try await session.data(for: request)
+        if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+            throw QuoteServiceError.http(http.statusCode)
+        }
+        return data
+    }
+
+    func url(_ string: String) throws -> URL {
+        guard let url = URL(string: string) else { throw QuoteServiceError.badURL }
+        return url
+    }
+}
+
+public enum QuoteServiceError: Error {
+    case badURL
+    case decode
+    case empty
+    case http(Int)
+}
