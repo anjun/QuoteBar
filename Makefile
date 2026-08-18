@@ -3,7 +3,23 @@ PREFIX ?= /Applications
 VERSION := $(shell tr -d '[:space:]' < VERSION)
 APP = QuoteBar.app
 
-.PHONY: start stop package dmg release test clean
+.DEFAULT_GOAL := help
+
+.PHONY: help start stop package dmg release test clean
+
+help:
+	@echo "QuoteBar $(VERSION)"
+	@echo
+	@echo "  make help                 显示可用命令"
+	@echo "  make start                打包安装到 $(PREFIX) 并启动"
+	@echo "  make stop                 退出 QuoteBar"
+	@echo "  make test                 运行测试"
+	@echo "  make package              打通用 .app"
+	@echo "  make dmg                  打 QuoteBar-$(VERSION).dmg"
+	@echo "  make release              升补丁号、总结 commit、push、发 GitHub Release"
+	@echo "  make release part=minor   升次版本号后发版"
+	@echo "  make release part=major   升主版本号后发版"
+	@echo "  make clean                清理 .build 和 dist"
 
 start: stop
 	NATIVE=1 ./scripts/package-app.sh "$(VERSION)"

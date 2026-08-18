@@ -33,6 +33,9 @@ chmod +x "$BIN_DIR/QuoteBar"
 plutil -replace CFBundleShortVersionString -string "$VERSION" "$ROOT/Resources/Info.plist"
 plutil -replace CFBundleVersion -string "$BUILD" "$ROOT/Resources/Info.plist"
 cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
+if [[ -f "$ROOT/Resources/AppIcon.icns" ]]; then
+  cp "$ROOT/Resources/AppIcon.icns" "$RES_DIR/AppIcon.icns"
+fi
 echo -n 'APPL????' > "$APP/Contents/PkgInfo"
 
 echo "App: $APP"
