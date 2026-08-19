@@ -66,9 +66,9 @@ make start         # 打包、安装并启动
 make dmg           # 打通用架构 DMG
 ```
 
-其它命令见 `make help`。发版走 `make release`（会升版本、打 tag、创建 GitHub Release）。
+其它命令见 `make help`。
 
-环境要求：Xcode 16 / Swift 5.10，以及打包发版时的 [GitHub CLI](https://cli.github.com/)。
+环境要求：Xcode 16 / Swift 5.10。
 
 ## 仓库结构
 

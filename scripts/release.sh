@@ -7,6 +7,9 @@ cd "$ROOT"
 PART="${1:-patch}"
 REPO="${GITHUB_REPOSITORY:-anjun/QuoteBar}"
 
+OWNER_LOGIN="anjun"
+OWNER_REPO="anjun/QuoteBar"
+
 if ! command -v gh >/dev/null 2>&1; then
   echo "gh not found; install GitHub CLI" >&2
   exit 1
@@ -14,6 +17,17 @@ fi
 
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   echo "not a git repository" >&2
+  exit 1
+fi
+
+login="$(gh api user --jq .login)"
+if [[ "$login" != "$OWNER_LOGIN" ]]; then
+  echo "make release 仅限 @${OWNER_LOGIN} 使用，当前 GitHub 用户是 ${login}" >&2
+  exit 1
+fi
+
+if [[ "$REPO" != "$OWNER_REPO" ]]; then
+  echo "make release 只发布到 ${OWNER_REPO}，拒绝 ${REPO}" >&2
   exit 1
 fi
 

@@ -16,9 +16,9 @@ help:
 	@echo "  make test                 运行测试"
 	@echo "  make package              打通用 .app"
 	@echo "  make dmg                  打 QuoteBar-$(VERSION).dmg"
-	@echo "  make release              升补丁号、总结 commit、push、发 GitHub Release"
-	@echo "  make release part=minor   升次版本号后发版"
-	@echo "  make release part=major   升主版本号后发版"
+	@echo "  make release              仅所有者：升补丁号、push、发 GitHub Release"
+	@echo "  make release part=minor   仅所有者：升次版本号后发版"
+	@echo "  make release part=major   仅所有者：升主版本号后发版"
 	@echo "  make clean                清理 .build 和 dist"
 
 start: stop
