@@ -39,3 +39,34 @@ import Testing
     let byTx = SearchRanker.rank(hits, query: "tx")
     #expect(byTx.first?.name == "腾讯控股")
 }
+
+@Test func tencentSearchPgParsesAppleAndRanksItAboveProcter() {
+    let body = #"v_hint="us~aapl.oq~\u82f9\u679c~pg~GP^us~pg.n~\u5b9d\u6d01~bj~GP""#
+    let parsed = TencentSearchParser.parse(body)
+    let apple = parsed.first { $0.symbol.code == "AAPL" }
+    #expect(apple?.name == "苹果")
+    #expect(apple?.pinyin.lowercased() == "pg")
+    #expect(apple?.symbol == SymbolID.usStock("AAPL"))
+
+    let ranked = SearchRanker.rank(parsed, query: "pg")
+    #expect(ranked.first?.symbol == SymbolID.usStock("AAPL"))
+}
+
+@Test func searchRankUSPinyinBeatsSameLetterTicker() {
+    let hits = [
+        SearchHit(symbol: SymbolID.usStock("PG"), name: "宝洁", pinyin: "bj"),
+        SearchHit(symbol: SymbolID.usStock("AAPL"), name: "苹果", pinyin: "pg"),
+        SearchHit(symbol: SymbolID.shStock("600312"), name: "平高电气", pinyin: "pgdq"),
+    ]
+    let ranked = SearchRanker.rank(hits, query: "pg")
+    #expect(ranked.first?.symbol == SymbolID.usStock("AAPL"))
+}
+
+@Test func searchRankUSTeslaJianpinBeatsAShareHomophone() {
+    let hits = [
+        SearchHit(symbol: SymbolID.shStock("600535"), name: "天士力", pinyin: "tsl"),
+        SearchHit(symbol: SymbolID.usStock("TSLA"), name: "特斯拉", pinyin: "tsl"),
+    ]
+    let ranked = SearchRanker.rank(hits, query: "tsl")
+    #expect(ranked.first?.symbol == SymbolID.usStock("TSLA"))
+}

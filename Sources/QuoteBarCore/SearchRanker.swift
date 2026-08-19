@@ -10,6 +10,21 @@ public enum SearchRanker {
         "gzmt": .shStock("600519"),
         "茅台": .shStock("600519"),
         "贵州茅台": .shStock("600519"),
+        "pg": .usStock("AAPL"),
+        "苹果": .usStock("AAPL"),
+        "tsl": .usStock("TSLA"),
+        "特斯拉": .usStock("TSLA"),
+        "ymx": .usStock("AMZN"),
+        "亚马逊": .usStock("AMZN"),
+        "wr": .usStock("MSFT"),
+        "微软": .usStock("MSFT"),
+        "ywd": .usStock("NVDA"),
+        "英伟达": .usStock("NVDA"),
+        "nsdk100": .usIndex("NDX"),
+        "纳指": .usIndex("NDX"),
+        "dqs": .usIndex("DJI"),
+        "道指": .usIndex("DJI"),
+        "道琼斯": .usIndex("DJI"),
     ]
 
     public static func rank(_ hits: [SearchHit], query: String) -> [SearchHit] {

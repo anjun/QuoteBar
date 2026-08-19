@@ -18,12 +18,32 @@ import Testing
     #expect(!MarketSession.isOpen(.hk, at: weekday(tz: hongKong, hour: 16, minute: 0)))
 }
 
-@Test func usRegularHoursUseNewYorkTimeAndIgnorePrePost() {
+@Test func usSessionIncludesNasdaqPreAndAfterHours() {
+    #expect(MarketSession.isOpen(.us, at: weekday(tz: newYork, hour: 4, minute: 0)))
+    #expect(MarketSession.isOpen(.us, at: weekday(tz: newYork, hour: 9, minute: 29)))
     #expect(MarketSession.isOpen(.us, at: weekday(tz: newYork, hour: 10, minute: 0)))
     #expect(MarketSession.isOpen(.us, at: weekday(tz: newYork, hour: 15, minute: 59)))
-    #expect(!MarketSession.isOpen(.us, at: weekday(tz: newYork, hour: 9, minute: 29)))
-    #expect(!MarketSession.isOpen(.us, at: weekday(tz: newYork, hour: 16, minute: 0)))
+    #expect(MarketSession.isOpen(.us, at: weekday(tz: newYork, hour: 16, minute: 0)))
+    #expect(MarketSession.isOpen(.us, at: weekday(tz: newYork, hour: 19, minute: 59)))
+    #expect(!MarketSession.isOpen(.us, at: weekday(tz: newYork, hour: 3, minute: 59)))
+    #expect(!MarketSession.isOpen(.us, at: weekday(tz: newYork, hour: 20, minute: 0)))
     #expect(!MarketSession.isOpen(.us, at: weekday(tz: shanghai, hour: 10, minute: 0)))
+    #expect(!MarketSession.isOpen(.us, at: saturday(tz: newYork, hour: 10, minute: 0)))
+}
+
+@Test func usPhaseLabelsPreAndAfterHoursOnly() {
+    #expect(MarketSession.phase(.us, at: weekday(tz: newYork, hour: 4, minute: 0)) == .preMarket)
+    #expect(MarketSession.phase(.us, at: weekday(tz: newYork, hour: 9, minute: 29)) == .preMarket)
+    #expect(MarketSession.phase(.us, at: weekday(tz: newYork, hour: 9, minute: 30)) == .regular)
+    #expect(MarketSession.phase(.us, at: weekday(tz: newYork, hour: 15, minute: 59)) == .regular)
+    #expect(MarketSession.phase(.us, at: weekday(tz: newYork, hour: 16, minute: 0)) == .afterHours)
+    #expect(MarketSession.phase(.us, at: weekday(tz: newYork, hour: 19, minute: 59)) == .afterHours)
+    #expect(MarketSession.phase(.us, at: weekday(tz: newYork, hour: 20, minute: 0)) == .closed)
+    #expect(MarketSession.phase(.us, at: saturday(tz: newYork, hour: 5, minute: 0)) == .closed)
+    #expect(MarketSession.phase(.us, at: weekday(tz: newYork, hour: 8, minute: 0)).label == "盘前")
+    #expect(MarketSession.phase(.us, at: weekday(tz: newYork, hour: 12, minute: 0)).label == nil)
+    #expect(MarketSession.phase(.us, at: weekday(tz: newYork, hour: 17, minute: 0)).label == "盘后")
+    #expect(MarketSession.phase(.sh, at: weekday(tz: shanghai, hour: 10, minute: 0)).label == nil)
 }
 
 @Test func carouselKeepsOnlyOpenIndicesFromWatchlist() {
@@ -63,6 +83,23 @@ import Testing
         at: saturday(tz: shanghai, hour: 10, minute: 0)
     )
     #expect(weekend.isEmpty)
+}
+
+@Test func carouselIncludesUSIndicesDuringPreAndAfterHours() {
+    let list = [
+        SymbolID.shIndex("000001"),
+        SymbolID.hkIndex("HSI"),
+        SymbolID.usIndex("NDX"),
+        SymbolID.usStock("AAPL"),
+    ]
+
+    #expect(CarouselSelection.indices(from: list, at: weekday(tz: newYork, hour: 5, minute: 0)) == [
+        SymbolID.usIndex("NDX"),
+    ])
+    #expect(CarouselSelection.indices(from: list, at: weekday(tz: newYork, hour: 17, minute: 0)) == [
+        SymbolID.usIndex("NDX"),
+    ])
+    #expect(CarouselSelection.indices(from: list, at: weekday(tz: newYork, hour: 21, minute: 0)).isEmpty)
 }
 
 private let shanghai = TimeZone(identifier: "Asia/Shanghai")!

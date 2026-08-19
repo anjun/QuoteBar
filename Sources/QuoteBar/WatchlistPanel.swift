@@ -36,7 +36,7 @@ struct WatchlistPanel: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.secondary)
-            TextField("搜索名称 / 代码 / 拼音，如 tx", text: Binding(
+            TextField("搜索名称 / 代码 / 拼音，如 tx、pg", text: Binding(
                 get: { model.searchText },
                 set: { model.updateSearch($0) }
             ))
@@ -111,7 +111,7 @@ struct WatchlistPanel: View {
             } else {
                 columnHeader
                 ForEach(model.watchlist.groups(), id: \.family) { group in
-                    marketHeader(group.family.title)
+                    marketHeader(group.family)
                     ForEach(group.items, id: \.self) { symbol in
                         quoteRow(symbol)
                     }
@@ -138,13 +138,28 @@ struct WatchlistPanel: View {
         .padding(.bottom, 4)
     }
 
-    private func marketHeader(_ title: String) -> some View {
-        Text(title)
-            .font(.system(size: 10, weight: .semibold))
+    private func marketHeader(_ family: MarketFamily) -> some View {
+        HStack(spacing: 6) {
+            Text(family.title)
+            if family == .us, let label = MarketSession.phase(.us).label {
+                sessionBadge(label)
+            }
+        }
+        .font(.system(size: 10, weight: .semibold))
+        .foregroundStyle(.secondary)
+        .padding(.top, 8)
+        .padding(.bottom, 2)
+        .padding(.leading, 10)
+    }
+
+    private func sessionBadge(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 9, weight: .semibold))
             .foregroundStyle(.secondary)
-            .padding(.top, 8)
-            .padding(.bottom, 2)
-            .padding(.leading, 10)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 1)
+            .background(Color.primary.opacity(0.08), in: Capsule())
+            .accessibilityLabel(text)
     }
 
     private func quoteRow(_ symbol: SymbolID) -> some View {
@@ -277,6 +292,9 @@ struct WatchlistPanel: View {
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
+                    if symbol.market.family == .us, let label = MarketSession.phase(.us).label {
+                        sessionBadge(label)
+                    }
                     if model.pinnedSymbol == symbol {
                         Image(systemName: "pin.fill")
                             .font(.system(size: 8, weight: .semibold))
