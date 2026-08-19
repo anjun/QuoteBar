@@ -90,7 +90,10 @@ import Testing
 }
 
 @Test func sinaFrozenPayloadMapsAShareHKUSAndETF() throws {
-    let quotes = SinaQuoteParser.parse(try FixtureLoader.string("sina-frozen.txt"))
+    let quotes = SinaQuoteParser.parse(
+        try FixtureLoader.string("sina-frozen.txt"),
+        at: usRegularHours
+    )
 
     let sh = try #require(quotes.first { $0.symbol.code == "000001" })
     #expect(sh.name == "上证指数")
@@ -119,10 +122,65 @@ import Testing
 }
 
 @Test func sinaLiveCapturePopulatesStocksAndETFs() throws {
-    let quotes = SinaQuoteParser.parse(try FixtureLoader.string("sina-quotes.txt"))
+    let quotes = SinaQuoteParser.parse(
+        try FixtureLoader.string("sina-quotes.txt"),
+        at: usRegularHours
+    )
     #expect(quotes.contains { $0.symbol.code == "000001" && $0.last != 0 })
     #expect(quotes.contains { $0.symbol.code == "00700" && $0.last != 0 })
     #expect(quotes.contains { $0.symbol.code == "AAPL" && $0.last != 0 })
     #expect(quotes.contains { $0.symbol.code == "510300" && $0.last != 0 })
     #expect(quotes.contains { $0.symbol.code == "SPY" && $0.last != 0 })
+}
+
+@Test func sinaUSPreMarketUsesExtendedHoursPrintNotPreviousClose() {
+    let body = """
+    var hq_str_gb_skhy="SK海力士,155.6200,-9.20,2026-08-19 18:14:25,-15.7600,161.7800,163.8800,154.5302,194.8000,124.8000,22821889,23719132,0,0.00,--,0.00,0.08,0.00,0.00,7288654771,0,161.8000,3.97,6.18,Aug 19 06:14AM EDT,Aug 18 04:00PM EDT,171.3800,5804891,1,2026,0,166.9900,150.0200,0,165.0000,155.6200";
+    """
+    let pre = SinaQuoteParser.parse(body, at: usPreMarket)
+    #expect(pre.first?.symbol == SymbolID.usStock("SKHY"))
+    #expect(pre.first?.last == 161.8)
+    #expect(pre.first?.change == 6.18)
+    #expect(pre.first?.changePercent == 3.97)
+
+    let regular = SinaQuoteParser.parse(body, at: usRegularHours)
+    #expect(regular.first?.last == 155.62)
+    #expect(regular.first?.change == -15.76)
+    #expect(regular.first?.changePercent == -9.20)
+}
+
+@Test func sinaNDXPreMarketMapsQMIIndicator() {
+    let body = """
+    var hq_str_gb_qmi="纳斯达克100盘前交易指数,29591.7547,-1.35,2026-08-19 15:55:43,-403.6266,29628.7762,29646.6766,29569.7659,30758.2441,23033.9824,0,0,0,0.00,--,0.00,0.00,0.00,0.00,0,0,0.0000,0.00,0.00,,Aug 18 09:29AM EDT,29995.3813,0,1,2026,0,0,0,0,0,0";
+    """
+    let quotes = SinaQuoteParser.parse(body, at: usPreMarket)
+    #expect(quotes.first?.symbol == SymbolID.usIndex("NDX"))
+    #expect(abs((quotes.first?.last ?? 0) - 29591.7547) < 0.0001)
+    #expect(quotes.first?.changePercent == -1.35)
+}
+
+@Test func sinaSPXPreMarketMapsESFutures() {
+    let body = """
+    var hq_str_hf_ES="7713.675,,7712.750,7713.000,7722.000,7698.250,18:15:45,7714.000,7714.000,0,7,18,2026-08-19,标普500指数期货,0";
+    """
+    let quotes = SinaQuoteParser.parse(body, at: usPreMarket)
+    #expect(quotes.first?.symbol == SymbolID.usIndex("SPX"))
+    #expect(abs((quotes.first?.last ?? 0) - 7713.675) < 0.0001)
+    #expect(abs((quotes.first?.change ?? 0) - (7713.675 - 7714.0)) < 0.0001)
+}
+
+private let usNewYork = TimeZone(identifier: "America/New_York")!
+
+private var usRegularHours: Date {
+    usDate(year: 2026, month: 8, day: 18, hour: 10, minute: 0)
+}
+
+private var usPreMarket: Date {
+    usDate(year: 2026, month: 8, day: 19, hour: 6, minute: 14)
+}
+
+private func usDate(year: Int, month: Int, day: Int, hour: Int, minute: Int) -> Date {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = usNewYork
+    return calendar.date(from: DateComponents(year: year, month: month, day: day, hour: hour, minute: minute))!
 }

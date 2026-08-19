@@ -31,8 +31,16 @@ public enum ProviderCodes {
         }
     }
 
-    public static func sinaListCode(_ symbol: SymbolID) -> String? {
-        if symbol.isUSIndex { return nil }
+    public static func sinaListCode(_ symbol: SymbolID, phase: MarketSessionPhase = .regular) -> String? {
+        if symbol.market == .us, symbol.kind == .index {
+            switch (symbol.code, phase) {
+            case ("NDX", .preMarket): return "gb_qmi"
+            case ("NDX", .afterHours): return "gb_qiv"
+            case ("SPX", .preMarket), ("SPX", .afterHours): return "hf_ES"
+            case ("DJI", .preMarket), ("DJI", .afterHours): return "hf_YM"
+            default: return nil
+            }
+        }
         switch symbol.market {
         case .sh: return "sh\(symbol.code)"
         case .sz: return "sz\(symbol.code)"

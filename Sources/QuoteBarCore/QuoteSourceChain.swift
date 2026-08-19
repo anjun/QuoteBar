@@ -14,7 +14,8 @@ public enum QuoteBatchResolver {
         symbols: [SymbolID],
         tencent: [SymbolID: Quote]?,
         eastMoney: [SymbolID: Quote]?,
-        sina: [SymbolID: Quote]?
+        sina: [SymbolID: Quote]?,
+        sinaOverlaysExisting: Bool = false
     ) -> [SymbolID: Quote] {
         var remaining = Set(symbols)
         var result: [SymbolID: Quote] = [:]
@@ -32,10 +33,29 @@ public enum QuoteBatchResolver {
         absorb(tencent)
         absorb(eastMoney)
         if let sina {
-            for id in remaining where !id.isUSIndex {
-                if let quote = sina[id] {
-                    result[id] = quote
+            if sinaOverlaysExisting {
+                for id in symbols {
+                    guard let quote = sina[id] else { continue }
+                    if let existing = result[id] {
+                        result[id] = Quote(
+                            symbol: existing.symbol,
+                            name: existing.name,
+                            last: quote.last,
+                            change: quote.change,
+                            changePercent: quote.changePercent,
+                            source: quote.source
+                        )
+                    } else {
+                        result[id] = quote
+                    }
                     remaining.remove(id)
+                }
+            } else {
+                for id in remaining where !id.isUSIndex {
+                    if let quote = sina[id] {
+                        result[id] = quote
+                        remaining.remove(id)
+                    }
                 }
             }
         }

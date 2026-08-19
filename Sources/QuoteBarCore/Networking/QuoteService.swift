@@ -11,18 +11,24 @@ public struct QuoteService: Sendable {
 
     public func quotes(for symbols: [SymbolID]) async -> [SymbolID: Quote] {
         guard !symbols.isEmpty else { return [:] }
+        let usPhase = MarketSession.phase(.us)
+        let overlayExtended = usPhase == .preMarket || usPhase == .afterHours
         let tencent = try? await fetchTencent(symbols)
         let missingAfterTencent = symbols.filter { tencent?[$0] == nil }
         let eastMoney = missingAfterTencent.isEmpty ? nil : try? await fetchEastMoney(missingAfterTencent)
-        let missingAfterEM = symbols.filter { id in
-            tencent?[id] == nil && eastMoney?[id] == nil && !id.isUSIndex
+        let sinaTargets = symbols.filter { id in
+            if overlayExtended, id.market == .us {
+                return ProviderCodes.sinaListCode(id, phase: usPhase) != nil
+            }
+            return tencent?[id] == nil && eastMoney?[id] == nil && !id.isUSIndex
         }
-        let sina = missingAfterEM.isEmpty ? nil : try? await fetchSina(missingAfterEM)
+        let sina = sinaTargets.isEmpty ? nil : try? await fetchSina(sinaTargets, phase: usPhase)
         return QuoteBatchResolver.resolve(
             symbols: symbols,
             tencent: tencent,
             eastMoney: eastMoney,
-            sina: sina
+            sina: sina,
+            sinaOverlaysExisting: overlayExtended
         )
     }
 
@@ -68,8 +74,8 @@ public struct QuoteService: Sendable {
         throw lastError
     }
 
-    func fetchSina(_ symbols: [SymbolID]) async throws -> [SymbolID: Quote] {
-        let codes = symbols.compactMap(ProviderCodes.sinaListCode)
+    func fetchSina(_ symbols: [SymbolID], phase: MarketSessionPhase = .regular) async throws -> [SymbolID: Quote] {
+        let codes = symbols.compactMap { ProviderCodes.sinaListCode($0, phase: phase) }
         guard !codes.isEmpty else { return [:] }
         let url = try url("https://hq.sinajs.cn/list=\(codes.joined(separator: ","))")
         let data = try await get(url, headers: ["Referer": "https://finance.sina.com.cn"])
