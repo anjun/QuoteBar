@@ -9,7 +9,7 @@ enum AppVersion {
            value != "1.0", !value.isEmpty {
             return value
         }
-        return "0.1.7"
+        return "0.1.8"
     }
 
     static var build: String {
