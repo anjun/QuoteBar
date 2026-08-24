@@ -5,7 +5,7 @@ APP = QuoteBar.app
 
 .DEFAULT_GOAL := help
 
-.PHONY: help start stop package dmg release test clean
+.PHONY: help start stop package dmg public test clean
 
 help:
 	@echo "QuoteBar $(VERSION)"
@@ -16,9 +16,9 @@ help:
 	@echo "  make test                 运行测试"
 	@echo "  make package              打通用 .app"
 	@echo "  make dmg                  打 QuoteBar-$(VERSION).dmg"
-	@echo "  make release              仅所有者：升补丁号、push、发 GitHub Release"
-	@echo "  make release part=minor   仅所有者：升次版本号后发版"
-	@echo "  make release part=major   仅所有者：升主版本号后发版"
+	@echo "  make public               仅所有者：升补丁号、push、发 GitHub Release"
+	@echo "  make public part=minor    仅所有者：升次版本号后发版"
+	@echo "  make public part=major    仅所有者：升主版本号后发版"
 	@echo "  make clean                清理 .build 和 dist"
 
 start: stop
@@ -40,7 +40,7 @@ package:
 dmg: package
 	./scripts/make-dmg.sh "$(VERSION)"
 
-release:
+public:
 	GITHUB_REPOSITORY="$(REPO)" ./scripts/release.sh $(part)
 
 test:

@@ -22,12 +22,12 @@ fi
 
 login="$(gh api user --jq .login)"
 if [[ "$login" != "$OWNER_LOGIN" ]]; then
-  echo "make release 仅限 @${OWNER_LOGIN} 使用，当前 GitHub 用户是 ${login}" >&2
+  echo "make public 仅限 @${OWNER_LOGIN} 使用，当前 GitHub 用户是 ${login}" >&2
   exit 1
 fi
 
 if [[ "$REPO" != "$OWNER_REPO" ]]; then
-  echo "make release 只发布到 ${OWNER_REPO}，拒绝 ${REPO}" >&2
+  echo "make public 只发布到 ${OWNER_REPO}，拒绝 ${REPO}" >&2
   exit 1
 fi
 
