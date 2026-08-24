@@ -57,6 +57,20 @@ enum StatusItemRightClick {
         compact.state = MainActor.assumeIsolated { target.model?.isCompactTitle ?? false } ? .on : .off
         compact.toolTip = "缩短菜单栏标题，避免被刘海挡住"
         menu.addItem(compact)
+        let login = NSMenuItem(
+            title: "登录时打开",
+            action: #selector(StatusItemMenuTarget.toggleLaunchAtLogin),
+            keyEquivalent: ""
+        )
+        login.target = target
+        if LaunchAtLogin.needsApproval {
+            login.state = .mixed
+            login.toolTip = "需要在系统设置 ▸ 通用 ▸ 登录项与扩展 中允许"
+        } else {
+            login.state = LaunchAtLogin.isEnabled ? .on : .off
+            login.toolTip = "登录 Mac 后自动启动 QuoteBar"
+        }
+        menu.addItem(login)
         let update = NSMenuItem(
             title: "检查更新",
             action: #selector(StatusItemMenuTarget.checkForUpdates),
@@ -91,5 +105,10 @@ final class StatusItemMenuTarget: NSObject {
     @MainActor
     @objc func toggleCompactTitle() {
         model?.toggleCompactTitle()
+    }
+
+    @MainActor
+    @objc func toggleLaunchAtLogin() {
+        LaunchAtLogin.toggle()
     }
 }
