@@ -13,21 +13,25 @@ public struct QuoteService: Sendable {
         guard !symbols.isEmpty else { return [:] }
         let usPhase = MarketSession.phase(.us)
         let overlayExtended = usPhase == .preMarket || usPhase == .afterHours
-        let tencent = try? await fetchTencent(symbols)
-        let missingAfterTencent = symbols.filter { tencent?[$0] == nil }
+        let thsSymbols = symbols.filter { ProviderCodes.tonghuashunTimeCode($0) != nil }
+        let rest = symbols.filter { ProviderCodes.tonghuashunTimeCode($0) == nil }
+        let tencent = rest.isEmpty ? nil : try? await fetchTencent(rest)
+        let missingAfterTencent = rest.filter { tencent?[$0] == nil }
         let eastMoney = missingAfterTencent.isEmpty ? nil : try? await fetchEastMoney(missingAfterTencent)
-        let sinaTargets = symbols.filter { id in
+        let sinaTargets = rest.filter { id in
             if overlayExtended, id.market == .us {
                 return ProviderCodes.sinaListCode(id, phase: usPhase) != nil
             }
             return tencent?[id] == nil && eastMoney?[id] == nil && !id.isUSIndex
         }
         let sina = sinaTargets.isEmpty ? nil : try? await fetchSina(sinaTargets, phase: usPhase)
+        let tonghuashun = thsSymbols.isEmpty ? nil : try? await fetchTonghuashun(thsSymbols)
         return QuoteBatchResolver.resolve(
             symbols: symbols,
             tencent: tencent,
             eastMoney: eastMoney,
             sina: sina,
+            tonghuashun: tonghuashun,
             sinaOverlaysExisting: overlayExtended
         )
     }
@@ -87,6 +91,27 @@ public struct QuoteService: Sendable {
         return rekey(SinaQuoteParser.parse(body), to: symbols) {
             ProviderCodes.sinaListCode($0, phase: phase)
         }
+    }
+
+    func fetchTonghuashun(_ symbols: [SymbolID]) async throws -> [SymbolID: Quote] {
+        var result: [SymbolID: Quote] = [:]
+        for symbol in symbols {
+            guard let code = ProviderCodes.tonghuashunTimeCode(symbol) else { continue }
+            let url = try url("https://d.10jqka.com.cn/v6/time/\(code)/last.js")
+            do {
+                let data = try await get(url, headers: ["Referer": "https://m.10jqka.com.cn/"])
+                guard let body = TextDecode.string(from: data, preferringGBK: false) else { continue }
+                if let quote = TonghuashunQuoteParser.parse(body).first(where: { $0.symbol == symbol })
+                    ?? TonghuashunQuoteParser.parse(body).first {
+                    var mapped = quote
+                    mapped.symbol = symbol
+                    result[symbol] = mapped
+                }
+            } catch {
+                continue
+            }
+        }
+        return result
     }
 
     func fetchTencentSearch(_ query: String) async throws -> [SearchHit] {

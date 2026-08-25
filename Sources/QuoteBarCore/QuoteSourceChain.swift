@@ -2,6 +2,9 @@ import Foundation
 
 public enum QuoteSourceChain {
     public static func sources(for symbol: SymbolID) -> [QuoteSource] {
+        if ProviderCodes.tonghuashunTimeCode(symbol) != nil {
+            return [.tonghuashun]
+        }
         if symbol.isUSIndex {
             return [.tencent, .eastMoney]
         }
@@ -15,6 +18,7 @@ public enum QuoteBatchResolver {
         tencent: [SymbolID: Quote]?,
         eastMoney: [SymbolID: Quote]?,
         sina: [SymbolID: Quote]?,
+        tonghuashun: [SymbolID: Quote]? = nil,
         sinaOverlaysExisting: Bool = false
     ) -> [SymbolID: Quote] {
         var remaining = Set(symbols)
@@ -59,6 +63,7 @@ public enum QuoteBatchResolver {
                 }
             }
         }
+        absorb(tonghuashun)
         return result
     }
 }

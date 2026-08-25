@@ -124,6 +124,7 @@ public enum QuoteSource: String, Codable, Sendable {
     case tencent
     case eastMoney
     case sina
+    case tonghuashun
 }
 
 public struct Quote: Equatable, Sendable {
@@ -153,7 +154,9 @@ public struct Quote: Equatable, Sendable {
         case "纳斯达克100", "纳斯达克": return "纳指"
         case "标普500": return "标普"
         case "道琼斯": return "道指"
+        case "伦敦金现": return "伦敦金现"
         case "伦敦金（现货黄金）", "黄金/美元": return "伦敦金"
+        case "伦敦银现": return "伦敦银现"
         case "伦敦银（现货白银）", "白银/美元": return "伦敦银"
         case "沪金主连", "黄金连续": return "沪金"
         case "沪银主连", "白银连续": return "沪银"

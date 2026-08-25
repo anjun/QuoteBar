@@ -110,26 +110,36 @@ import Testing
     #expect(parsed.isEmpty)
 }
 
-@Test func searchLondonGoldSpotAliasWorksWhenProvidersReturnNothing() {
+@Test func searchLondonGoldSpotAliasUsesTonghuashunAUUSDO() {
     let ranked = SearchResolver.resolve(query: "伦敦金现", tencent: [], eastMoney: [])
     let first = ranked.first
-    #expect(first?.symbol == SymbolID.metal("XAU"))
-    #expect(first?.name == "伦敦金（现货黄金）")
+    #expect(first?.symbol == SymbolID.metal("AUUSDO"))
+    #expect(first?.name == "伦敦金现")
 }
 
-@Test func searchLondonGoldMergesEastMoneyAndRanksAliasFirst() throws {
+@Test func searchAuusdoCodeAliasHitsLondonGoldSpot() {
+    let ranked = SearchResolver.resolve(query: "auusdo", tencent: [], eastMoney: [])
+    #expect(ranked.first?.symbol == SymbolID.metal("AUUSDO"))
+}
+
+@Test func searchLondonGoldMergesEastMoneyXAUButRanksAUUSDOFirst() throws {
     let em = try EastMoneySearchParser.parse(FixtureLoader.data("eastmoney-search-xau.json"))
     let ranked = SearchResolver.resolve(query: "伦敦金", tencent: [], eastMoney: em)
     let first = try #require(ranked.first)
-    #expect(first.symbol == SymbolID.metal("XAU"))
-    #expect(ranked.filter { $0.symbol == SymbolID.metal("XAU") }.count == 1)
+    #expect(first.symbol == SymbolID.metal("AUUSDO"))
+    #expect(ranked.contains { $0.symbol == SymbolID.metal("XAU") })
 }
 
-@Test func providerCodesForLondonGoldAndShanghaiGold() {
+@Test func providerCodesForLondonGoldSpotAndShanghaiGold() {
+    let spot = SymbolID.metal("AUUSDO")
+    #expect(ProviderCodes.tonghuashunTimeCode(spot) == "218_AUUSDO")
+    #expect(ProviderCodes.sinaListCode(spot) == nil)
+
     let xau = SymbolID.metal("XAU")
     #expect(ProviderCodes.tencentQuery(xau) == "hf_XAU")
     #expect(ProviderCodes.eastMoneySecID(xau) == "122.XAU")
     #expect(ProviderCodes.sinaListCode(xau) == "hf_XAU")
+    #expect(ProviderCodes.tonghuashunTimeCode(xau) == nil)
 
     let aum = SymbolID.future("aum", quoteMarket: 113)
     #expect(ProviderCodes.eastMoneySecID(aum) == "113.aum")
@@ -142,20 +152,34 @@ import Testing
 }
 
 @Test func futuresAndMetalStayOnFullSourceChain() {
+    #expect(QuoteSourceChain.sources(for: .metal("AUUSDO")) == [.tonghuashun])
     #expect(QuoteSourceChain.sources(for: .metal("XAU")) == [.tencent, .eastMoney, .sina])
     #expect(QuoteSourceChain.sources(for: .future("aum", quoteMarket: 113)) == [.tencent, .eastMoney, .sina])
+}
+
+@Test func tonghuashunTimePayloadMapsLondonGoldSpotAUUSDO() {
+    let body = """
+    quotebridge_v6_time_218_AUUSDO_last({"218_AUUSDO":{"name":"伦敦金现","open":1,"stop":0,"isTrading":1,"pre":"4679.740","date":"20260825","data":"0800,4679.740,0,4679.740,0;1213,4637.150,0,4637.150,0"}});
+    """
+    let quotes = TonghuashunQuoteParser.parse(body)
+    let gold = quotes.first { $0.symbol == SymbolID.metal("AUUSDO") }
+    #expect(gold?.name == "伦敦金现")
+    #expect(gold?.last == 4637.15)
+    #expect(abs((gold?.change ?? 0) - (4637.15 - 4679.74)) < 0.0001)
+    #expect(gold?.source == .tonghuashun)
+    #expect(gold?.shortDisplayName == "伦敦金现")
 }
 
 @Test func watchlistGroupsFuturesAndMetalsSeparately() {
     var list = Watchlist(items: [
         .shIndex("000001"),
-        .metal("XAU"),
+        .metal("AUUSDO"),
         .future("aum", quoteMarket: 113),
         .usIndex("NDX"),
     ])
     let groups = list.groups()
     #expect(groups.map(\.family) == [.cn, .us, .futures, .metal])
-    #expect(groups.first { $0.family == .metal }?.items == [.metal("XAU")])
+    #expect(groups.first { $0.family == .metal }?.items == [.metal("AUUSDO")])
     #expect(groups.first { $0.family == .futures }?.items == [.future("aum", quoteMarket: 113)])
 
     list.move(.future("aum", quoteMarket: 113), by: -1)

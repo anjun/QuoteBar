@@ -62,7 +62,9 @@ public enum ProviderCodes {
         case .sz: return "sz\(symbol.code)"
         case .hk: return "rt_hk\(symbol.code)"
         case .us: return "gb_\(symbol.code.lowercased())"
-        case .metal: return "hf_\(symbol.code)"
+        case .metal:
+            if tonghuashunTimeCode(symbol) != nil { return nil }
+            return "hf_\(symbol.code)"
         case .qh:
             if let hf = internationalHFCode[symbol.code.uppercased()] {
                 return "hf_\(hf)"
@@ -75,6 +77,19 @@ public enum ProviderCodes {
             }
             return nil
         }
+    }
+
+    /// 同花顺分时代码，如伦敦金现 `218_AUUSDO`。没有对应页则返回 nil。
+    public static func tonghuashunTimeCode(_ symbol: SymbolID) -> String? {
+        guard symbol.market == .metal else { return nil }
+        let code = symbol.code.uppercased()
+        if let mapped = tonghuashunMetalCodes[code] {
+            return mapped
+        }
+        if code.hasSuffix("USDO"), code.count >= 6 {
+            return "218_\(code)"
+        }
+        return nil
     }
 
     public static func market(fromTencentPrefix prefix: String) -> SymbolID.Market? {
@@ -164,6 +179,13 @@ public enum ProviderCodes {
         }
         return nil
     }
+
+    static let tonghuashunMetalCodes: [String: String] = [
+        "AUUSDO": "218_AUUSDO",
+        "AGUSDO": "218_AGUSDO",
+        "PTUSDO": "218_PTUSDO",
+        "PDUSDO": "218_PDUSDO",
+    ]
 
     /// EastMoney 期货/国际盘 market number。
     static let futuresMarketNumbers: Set<Int> = [
