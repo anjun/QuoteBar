@@ -4,19 +4,34 @@ public struct SymbolID: Hashable, Codable, Sendable {
     public var market: Market
     public var code: String
     public var kind: Kind
+    /// EastMoney `f13` / `MktNum`. Needed so 期货合约在刷新时仍能拼出 `113.aum` 这类 secid。
+    public var quoteMarket: Int?
 
     public enum Market: String, Codable, Sendable {
         case sh, sz, hk, us
+        case qh
+        case metal
     }
 
     public enum Kind: String, Codable, Sendable {
-        case stock, etf, index
+        case stock, etf, index, future, spot
     }
 
-    public init(market: Market, code: String, kind: Kind) {
+    public init(market: Market, code: String, kind: Kind, quoteMarket: Int? = nil) {
         self.market = market
         self.code = SymbolID.normalize(code, market: market)
         self.kind = kind
+        self.quoteMarket = quoteMarket
+    }
+
+    public static func == (lhs: SymbolID, rhs: SymbolID) -> Bool {
+        lhs.market == rhs.market && lhs.code == rhs.code && lhs.kind == rhs.kind
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(market)
+        hasher.combine(code)
+        hasher.combine(kind)
     }
 
     public var isUSIndex: Bool { market == .us && kind == .index }
@@ -32,9 +47,23 @@ public struct SymbolID: Hashable, Codable, Sendable {
     public static func usStock(_ code: String) -> SymbolID { SymbolID(market: .us, code: code, kind: .stock) }
     public static func usETF(_ code: String) -> SymbolID { SymbolID(market: .us, code: code, kind: .etf) }
     public static func usIndex(_ code: String) -> SymbolID { SymbolID(market: .us, code: code, kind: .index) }
+    public static func metal(_ code: String) -> SymbolID {
+        SymbolID(market: .metal, code: code, kind: .spot, quoteMarket: 122)
+    }
+    public static func future(_ code: String, quoteMarket: Int) -> SymbolID {
+        SymbolID(market: .qh, code: code, kind: .future, quoteMarket: quoteMarket)
+    }
 
-    public static func classify(market: Market, code: String) -> SymbolID {
+    public var isFuturesOrMetal: Bool { market == .qh || market == .metal }
+
+    public static func classify(market: Market, code: String, quoteMarket: Int? = nil) -> SymbolID {
         let normalized = normalize(code, market: market)
+        if market == .metal {
+            return .metal(normalized)
+        }
+        if market == .qh {
+            return .future(normalized, quoteMarket: quoteMarket ?? 113)
+        }
         if market == .us, usIndexCodes.contains(normalized) {
             return .usIndex(normalized)
         }
@@ -74,6 +103,9 @@ public struct SymbolID: Hashable, Codable, Sendable {
         }
         if value.uppercased() == "DJIA" {
             return "DJI"
+        }
+        if market == .metal {
+            return value.uppercased()
         }
         if market == .us || hkIndexCodes.contains(value.uppercased()) || usIndexCodes.contains(value.uppercased()) {
             return value.uppercased()
@@ -121,6 +153,11 @@ public struct Quote: Equatable, Sendable {
         case "纳斯达克100", "纳斯达克": return "纳指"
         case "标普500": return "标普"
         case "道琼斯": return "道指"
+        case "伦敦金（现货黄金）", "黄金/美元": return "伦敦金"
+        case "伦敦银（现货白银）", "白银/美元": return "伦敦银"
+        case "沪金主连", "黄金连续": return "沪金"
+        case "沪银主连", "白银连续": return "沪银"
+        case "COMEX黄金", "纽约黄金": return "美黄金"
         default:
             if name.count <= 4 { return name }
             return String(name.prefix(4))

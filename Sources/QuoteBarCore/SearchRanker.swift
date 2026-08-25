@@ -25,7 +25,47 @@ public enum SearchRanker {
         "dqs": .usIndex("DJI"),
         "道指": .usIndex("DJI"),
         "道琼斯": .usIndex("DJI"),
+        "伦敦金现": .metal("XAU"),
+        "伦敦金": .metal("XAU"),
+        "现货黄金": .metal("XAU"),
+        "伦敦金（现货黄金）": .metal("XAU"),
+        "黄金/美元": .metal("XAU"),
+        "xau": .metal("XAU"),
+        "ldj": .metal("XAU"),
+        "ldjx": .metal("XAU"),
+        "伦敦银现": .metal("XAG"),
+        "伦敦银": .metal("XAG"),
+        "现货白银": .metal("XAG"),
+        "xag": .metal("XAG"),
+        "沪金": .future("aum", quoteMarket: 113),
+        "沪金主连": .future("aum", quoteMarket: 113),
+        "黄金连续": .future("aum", quoteMarket: 113),
+        "纽约黄金": .future("GC00Y", quoteMarket: 101),
+        "comex黄金": .future("GC00Y", quoteMarket: 101),
     ]
+
+    public static let aliasHits: [String: SearchHit] = [
+        "伦敦金现": SearchHit(symbol: .metal("XAU"), name: "伦敦金（现货黄金）", pinyin: "ldjx"),
+        "伦敦金": SearchHit(symbol: .metal("XAU"), name: "伦敦金（现货黄金）", pinyin: "ldj"),
+        "现货黄金": SearchHit(symbol: .metal("XAU"), name: "伦敦金（现货黄金）", pinyin: "xhhj"),
+        "xau": SearchHit(symbol: .metal("XAU"), name: "伦敦金（现货黄金）", pinyin: "xau"),
+        "ldj": SearchHit(symbol: .metal("XAU"), name: "伦敦金（现货黄金）", pinyin: "ldj"),
+        "ldjx": SearchHit(symbol: .metal("XAU"), name: "伦敦金（现货黄金）", pinyin: "ldjx"),
+        "伦敦银现": SearchHit(symbol: .metal("XAG"), name: "伦敦银（现货白银）", pinyin: "ldyx"),
+        "伦敦银": SearchHit(symbol: .metal("XAG"), name: "伦敦银（现货白银）", pinyin: "ldy"),
+        "现货白银": SearchHit(symbol: .metal("XAG"), name: "伦敦银（现货白银）", pinyin: "xhby"),
+        "xag": SearchHit(symbol: .metal("XAG"), name: "伦敦银（现货白银）", pinyin: "xag"),
+        "沪金": SearchHit(symbol: .future("aum", quoteMarket: 113), name: "沪金主连", pinyin: "hj"),
+        "沪金主连": SearchHit(symbol: .future("aum", quoteMarket: 113), name: "沪金主连", pinyin: "hjzl"),
+        "黄金连续": SearchHit(symbol: .future("aum", quoteMarket: 113), name: "沪金主连", pinyin: "hjlx"),
+        "纽约黄金": SearchHit(symbol: .future("GC00Y", quoteMarket: 101), name: "COMEX黄金", pinyin: "nyhj"),
+        "comex黄金": SearchHit(symbol: .future("GC00Y", quoteMarket: 101), name: "COMEX黄金", pinyin: "comexhj"),
+    ]
+
+    public static func aliasHit(for query: String) -> SearchHit? {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        return aliasHits[trimmed.lowercased()] ?? aliasHits[trimmed]
+    }
 
     public static func rank(_ hits: [SearchHit], query: String) -> [SearchHit] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)

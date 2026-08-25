@@ -35,8 +35,10 @@ public struct QuoteService: Sendable {
     public func search(_ query: String) async -> [SearchHit] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
-        let tencent = try? await fetchTencentSearch(trimmed)
-        let eastMoney = (tencent?.isEmpty ?? true) ? try? await fetchEastMoneySearch(trimmed) : nil
+        async let tencentResult = fetchTencentSearch(trimmed)
+        async let eastMoneyResult = fetchEastMoneySearch(trimmed)
+        let tencent = try? await tencentResult
+        let eastMoney = try? await eastMoneyResult
         return SearchResolver.resolve(query: trimmed, tencent: tencent, eastMoney: eastMoney)
     }
 
@@ -47,8 +49,7 @@ public struct QuoteService: Sendable {
         guard let body = TextDecode.string(from: data, preferringGBK: true) else {
             throw QuoteServiceError.decode
         }
-        let parsed = TencentQuoteParser.parse(body)
-        return Dictionary(uniqueKeysWithValues: parsed.map { ($0.symbol, $0) })
+        return rekey(TencentQuoteParser.parse(body), to: symbols) { ProviderCodes.tencentQuery($0) }
     }
 
     func fetchEastMoney(_ symbols: [SymbolID]) async throws -> [SymbolID: Quote] {
@@ -64,8 +65,9 @@ public struct QuoteService: Sendable {
                 let url = try url("\(host)/api/qt/ulist.np/get?fltt=2&invt=2&fields=f12,f13,f14,f2,f3,f4&secids=\(secids)")
                 let data = try await get(url, headers: [:])
                 let parsed = try EastMoneyQuoteParser.parse(data)
-                if !parsed.isEmpty {
-                    return Dictionary(uniqueKeysWithValues: parsed.map { ($0.symbol, $0) })
+                let keyed = rekey(parsed, to: symbols) { ProviderCodes.eastMoneySecID($0) }
+                if !keyed.isEmpty {
+                    return keyed
                 }
             } catch {
                 lastError = error
@@ -82,8 +84,9 @@ public struct QuoteService: Sendable {
         guard let body = TextDecode.string(from: data, preferringGBK: true) else {
             throw QuoteServiceError.decode
         }
-        let parsed = SinaQuoteParser.parse(body)
-        return Dictionary(uniqueKeysWithValues: parsed.map { ($0.symbol, $0) })
+        return rekey(SinaQuoteParser.parse(body), to: symbols) {
+            ProviderCodes.sinaListCode($0, phase: phase)
+        }
     }
 
     func fetchTencentSearch(_ query: String) async throws -> [SearchHit] {
@@ -122,6 +125,24 @@ public struct QuoteService: Sendable {
     func url(_ string: String) throws -> URL {
         guard let url = URL(string: string) else { throw QuoteServiceError.badURL }
         return url
+    }
+
+    func rekey(_ quotes: [Quote], to symbols: [SymbolID], code: (SymbolID) -> String?) -> [SymbolID: Quote] {
+        var byCode: [String: Quote] = [:]
+        for quote in quotes {
+            if let key = code(quote.symbol) {
+                byCode[key] = quote
+            }
+        }
+        var result: [SymbolID: Quote] = [:]
+        for symbol in symbols {
+            guard let key = code(symbol), var quote = byCode[key] else { continue }
+            if quote.symbol != symbol {
+                quote.symbol = symbol
+            }
+            result[symbol] = quote
+        }
+        return result
     }
 }
 

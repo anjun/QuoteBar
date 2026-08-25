@@ -22,7 +22,10 @@ public enum SinaQuoteParser {
             return parseHK(key: key, fields: fields)
         }
         if key.hasPrefix("hf_") {
-            return parseUSFuture(key: key, fields: fields)
+            return parseHF(key: key, fields: fields)
+        }
+        if key.hasPrefix("nf_") {
+            return parseCNFuture(key: key, fields: fields)
         }
         if key.hasPrefix("gb_") {
             return parseUS(key: key, fields: fields, at: date)
@@ -96,7 +99,7 @@ public enum SinaQuoteParser {
         )
     }
 
-    static func parseUSFuture(key: String, fields: [String]) -> Quote? {
+    static func parseHF(key: String, fields: [String]) -> Quote? {
         guard fields.count > 7,
               let last = TextDecode.double(fields[0]),
               let prev = TextDecode.double(fields[7]), prev != 0 else { return nil }
@@ -106,12 +109,47 @@ public enum SinaQuoteParser {
         case "ES": symbol = .usIndex("SPX")
         case "YM": symbol = .usIndex("DJI")
         case "NQ": symbol = .usIndex("NDX")
-        default: return nil
+        default:
+            guard let mapped = ProviderCodes.symbol(fromSinaHF: code) else { return nil }
+            symbol = mapped
         }
         let change = last - prev
         return Quote(
             symbol: symbol,
             name: fields.count > 13 ? fields[13] : symbol.code,
+            last: last,
+            change: change,
+            changePercent: change / prev * 100,
+            source: .sina
+        )
+    }
+
+    static func parseCNFuture(key: String, fields: [String]) -> Quote? {
+        let raw = String(key.dropFirst(3))
+        let last: Double
+        let prev: Double
+        let name: String
+        if TextDecode.double(fields[0]) != nil {
+            guard fields.count > 14,
+                  let parsedLast = TextDecode.double(fields[3]),
+                  let parsedPrev = TextDecode.double(fields[14]), parsedPrev != 0 else { return nil }
+            last = parsedLast
+            prev = parsedPrev
+            name = fields.last?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+                ? fields.last!
+                : raw
+        } else {
+            guard fields.count > 10,
+                  let parsedLast = TextDecode.double(fields[8]),
+                  let parsedPrev = TextDecode.double(fields[10]), parsedPrev != 0 else { return nil }
+            last = parsedLast
+            prev = parsedPrev
+            name = fields[0]
+        }
+        let change = last - prev
+        return Quote(
+            symbol: ProviderCodes.symbol(fromSinaNF: raw),
+            name: name,
             last: last,
             change: change,
             changePercent: change / prev * 100,

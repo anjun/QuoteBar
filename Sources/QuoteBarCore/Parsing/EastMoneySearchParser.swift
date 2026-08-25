@@ -5,17 +5,30 @@ public enum EastMoneySearchParser {
         let decoded = try JSONDecoder().decode(EastMoneySuggest.self, from: data)
         return (decoded.quotationCodeTable?.data ?? []).compactMap { row in
             guard let code = row.code, let name = row.name else { return nil }
-            let market: SymbolID.Market
+            let typeName = row.securityTypeName ?? ""
+            if typeName.contains("板块") { return nil }
+            let marketNo: Int
             if let quoteID = row.quoteID, let dot = quoteID.firstIndex(of: ".") {
-                let marketNo = Int(quoteID[..<dot]) ?? row.marketNumber ?? 1
-                market = ProviderCodes.market(fromEastMoney: marketNo, code: code)
-            } else if let mkt = row.marketNumber {
-                market = ProviderCodes.market(fromEastMoney: mkt, code: code)
+                marketNo = Int(quoteID[..<dot]) ?? row.marketNumber ?? 1
             } else {
-                market = .sh
+                marketNo = row.marketNumber ?? 1
             }
-            var symbol = SymbolID.classify(market: market, code: code)
-            if (row.securityTypeName ?? "").contains("基金") || (row.securityTypeName ?? "").uppercased().contains("ETF") {
+            if marketNo == 90 { return nil }
+            let classify = row.classify ?? ""
+            let isSpot = typeName.contains("现货") || classify == "FORPM" || marketNo == 122
+            let isFuture = typeName.contains("期货")
+                || ["Futures", "UniversalFutures", "CFFEX", "GFEX"].contains(classify)
+                || ProviderCodes.futuresMarketNumbers.contains(marketNo)
+            let market: SymbolID.Market
+            if isSpot {
+                market = .metal
+            } else if isFuture {
+                market = .qh
+            } else {
+                market = ProviderCodes.market(fromEastMoney: marketNo, code: code)
+            }
+            var symbol = SymbolID.classify(market: market, code: code, quoteMarket: marketNo)
+            if typeName.contains("基金") || typeName.uppercased().contains("ETF") {
                 symbol.kind = .etf
             }
             return SearchHit(symbol: symbol, name: name, pinyin: row.pinYin ?? "")
@@ -46,6 +59,7 @@ struct EastMoneySuggestRow: Decodable {
     var quoteID: String?
     var mktNum: FlexibleInt?
     var securityTypeName: String?
+    var classify: String?
 
     var marketNumber: Int? { mktNum?.value }
 
@@ -56,6 +70,7 @@ struct EastMoneySuggestRow: Decodable {
         case quoteID = "QuoteID"
         case mktNum = "MktNum"
         case securityTypeName = "SecurityTypeName"
+        case classify = "Classify"
     }
 }
 

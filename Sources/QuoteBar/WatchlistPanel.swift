@@ -36,7 +36,7 @@ struct WatchlistPanel: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.secondary)
-            TextField("搜索名称 / 代码 / 拼音，如 tx、pg", text: Binding(
+            TextField("搜索名称 / 代码 / 拼音，如 tx、pg、伦敦金", text: Binding(
                 get: { model.searchText },
                 set: { model.updateSearch($0) }
             ))

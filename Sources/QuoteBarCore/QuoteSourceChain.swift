@@ -69,12 +69,19 @@ public enum SearchResolver {
         tencent: [SearchHit]?,
         eastMoney: [SearchHit]?
     ) -> [SearchHit] {
-        if let tencent, !tencent.isEmpty {
-            return SearchRanker.rank(tencent, query: query)
+        var hits: [SearchHit] = []
+        var seen = Set<SymbolID>()
+        func absorb(_ batch: [SearchHit]?) {
+            guard let batch else { return }
+            for hit in batch where seen.insert(hit.symbol).inserted {
+                hits.append(hit)
+            }
         }
-        if let eastMoney, !eastMoney.isEmpty {
-            return SearchRanker.rank(eastMoney, query: query)
+        absorb(tencent)
+        absorb(eastMoney)
+        if let alias = SearchRanker.aliasHit(for: query) {
+            absorb([alias])
         }
-        return []
+        return SearchRanker.rank(hits, query: query)
     }
 }

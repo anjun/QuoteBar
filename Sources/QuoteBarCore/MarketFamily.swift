@@ -4,6 +4,8 @@ public enum MarketFamily: String, CaseIterable, Hashable, Sendable {
     case cn = "A 股"
     case hk = "港股"
     case us = "美股"
+    case futures = "期货"
+    case metal = "贵金属"
 
     public var title: String { rawValue }
 }
@@ -14,6 +16,8 @@ public extension SymbolID.Market {
         case .sh, .sz: return .cn
         case .hk: return .hk
         case .us: return .us
+        case .qh: return .futures
+        case .metal: return .metal
         }
     }
 }

@@ -11,7 +11,7 @@ public enum EastMoneyQuoteParser {
             return nil
         }
         let market = ProviderCodes.market(fromEastMoney: marketNo, code: code)
-        var symbol = SymbolID.classify(market: market, code: code)
+        var symbol = SymbolID.classify(market: market, code: code, quoteMarket: marketNo)
         if marketNo == 107 || marketNo == 106, symbol.kind == .stock, SymbolID.usETFCodes.contains(symbol.code) {
             symbol = .usETF(symbol.code)
         }
