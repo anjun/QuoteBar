@@ -102,6 +102,34 @@ import Testing
     #expect(CarouselSelection.indices(from: list, at: weekday(tz: newYork, hour: 21, minute: 0)).isEmpty)
 }
 
+@Test func carouselAddsOpenMetalsAndCryptoButNotStocksOrFutures() {
+    let list = [
+        SymbolID.shIndex("000001"),
+        SymbolID.usIndex("NDX"),
+        SymbolID.usStock("AAPL"),
+        SymbolID.future("aum", quoteMarket: 113),
+        SymbolID.metal("AUUSDO"),
+        SymbolID.crypto("BTC"),
+    ]
+
+    #expect(CarouselSelection.indices(from: list, at: weekday(tz: newYork, hour: 10, minute: 0)) == [
+        SymbolID.usIndex("NDX"),
+        SymbolID.metal("AUUSDO"),
+        SymbolID.crypto("BTC"),
+    ])
+    #expect(CarouselSelection.indices(from: list, at: weekday(tz: newYork, hour: 17, minute: 30)) == [
+        SymbolID.usIndex("NDX"),
+        SymbolID.crypto("BTC"),
+    ])
+    #expect(CarouselSelection.indices(from: list, at: saturday(tz: newYork, hour: 10, minute: 0)) == [
+        SymbolID.crypto("BTC"),
+    ])
+    #expect(CarouselSelection.indices(from: list, at: sunday(tz: newYork, hour: 18, minute: 0)) == [
+        SymbolID.metal("AUUSDO"),
+        SymbolID.crypto("BTC"),
+    ])
+}
+
 private let shanghai = TimeZone(identifier: "Asia/Shanghai")!
 private let hongKong = TimeZone(identifier: "Asia/Hong_Kong")!
 private let newYork = TimeZone(identifier: "America/New_York")!
@@ -112,6 +140,10 @@ private func weekday(tz: TimeZone, hour: Int, minute: Int) -> Date {
 
 private func saturday(tz: TimeZone, hour: Int, minute: Int) -> Date {
     date(tz: tz, year: 2026, month: 8, day: 22, hour: hour, minute: minute)
+}
+
+private func sunday(tz: TimeZone, hour: Int, minute: Int) -> Date {
+    date(tz: tz, year: 2026, month: 8, day: 23, hour: hour, minute: minute)
 }
 
 private func date(tz: TimeZone, year: Int, month: Int, day: Int, hour: Int, minute: Int) -> Date {

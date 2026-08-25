@@ -107,6 +107,18 @@ public enum MarketSession {
 
 public enum CarouselSelection {
     public static func indices(from symbols: [SymbolID], at date: Date = Date()) -> [SymbolID] {
-        symbols.filter { $0.kind == .index && MarketSession.isOpen($0.market, at: date) }
+        symbols.filter { eligible($0) && MarketSession.isOpen($0.market, at: date) }
+    }
+
+    /// Indices plus watchlist metals/crypto. Stocks, ETFs, and futures stay out unless pinned.
+    static func eligible(_ symbol: SymbolID) -> Bool {
+        switch symbol.market {
+        case .crypto, .metal:
+            return true
+        case .sh, .sz, .hk, .us:
+            return symbol.kind == .index
+        case .qh:
+            return false
+        }
     }
 }
