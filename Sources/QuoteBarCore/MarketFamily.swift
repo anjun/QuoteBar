@@ -6,6 +6,7 @@ public enum MarketFamily: String, CaseIterable, Hashable, Sendable {
     case us = "美股"
     case futures = "期货"
     case metal = "贵金属"
+    case crypto = "虚拟货币"
 
     public var title: String { rawValue }
 }
@@ -18,6 +19,7 @@ public extension SymbolID.Market {
         case .us: return .us
         case .qh: return .futures
         case .metal: return .metal
+        case .crypto: return .crypto
         }
     }
 }

@@ -11,6 +11,7 @@ public struct SymbolID: Hashable, Codable, Sendable {
         case sh, sz, hk, us
         case qh
         case metal
+        case crypto
     }
 
     public enum Kind: String, Codable, Sendable {
@@ -53,11 +54,17 @@ public struct SymbolID: Hashable, Codable, Sendable {
     public static func future(_ code: String, quoteMarket: Int) -> SymbolID {
         SymbolID(market: .qh, code: code, kind: .future, quoteMarket: quoteMarket)
     }
+    public static func crypto(_ code: String) -> SymbolID {
+        SymbolID(market: .crypto, code: code, kind: .spot)
+    }
 
     public var isFuturesOrMetal: Bool { market == .qh || market == .metal }
 
     public static func classify(market: Market, code: String, quoteMarket: Int? = nil) -> SymbolID {
         let normalized = normalize(code, market: market)
+        if market == .crypto {
+            return .crypto(normalized)
+        }
         if market == .metal {
             return .metal(normalized)
         }
@@ -107,6 +114,9 @@ public struct SymbolID: Hashable, Codable, Sendable {
         if market == .metal {
             return value.uppercased()
         }
+        if market == .crypto {
+            return CryptoCatalog.normalizeTicker(value) ?? value.uppercased()
+        }
         if market == .us || hkIndexCodes.contains(value.uppercased()) || usIndexCodes.contains(value.uppercased()) {
             return value.uppercased()
         }
@@ -125,6 +135,8 @@ public enum QuoteSource: String, Codable, Sendable {
     case eastMoney
     case sina
     case tonghuashun
+    case binance
+    case gate
 }
 
 public struct Quote: Equatable, Sendable {
@@ -161,6 +173,12 @@ public struct Quote: Equatable, Sendable {
         case "沪金主连", "黄金连续": return "沪金"
         case "沪银主连", "白银连续": return "沪银"
         case "COMEX黄金", "纽约黄金": return "美黄金"
+        case "比特币": return "比特币"
+        case "以太坊": return "以太坊"
+        case "狗狗币": return "狗狗"
+        case "瑞波币": return "瑞波"
+        case "索拉纳": return "索拉纳"
+        case "币安币": return "币安"
         default:
             if name.count <= 4 { return name }
             return String(name.prefix(4))

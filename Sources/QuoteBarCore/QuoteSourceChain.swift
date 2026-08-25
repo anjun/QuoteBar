@@ -2,6 +2,9 @@ import Foundation
 
 public enum QuoteSourceChain {
     public static func sources(for symbol: SymbolID) -> [QuoteSource] {
+        if symbol.market == .crypto {
+            return [.binance, .gate]
+        }
         if ProviderCodes.tonghuashunTimeCode(symbol) != nil {
             return [.tonghuashun]
         }
@@ -19,6 +22,8 @@ public enum QuoteBatchResolver {
         eastMoney: [SymbolID: Quote]?,
         sina: [SymbolID: Quote]?,
         tonghuashun: [SymbolID: Quote]? = nil,
+        binance: [SymbolID: Quote]? = nil,
+        gate: [SymbolID: Quote]? = nil,
         sinaOverlaysExisting: Bool = false
     ) -> [SymbolID: Quote] {
         var remaining = Set(symbols)
@@ -64,6 +69,8 @@ public enum QuoteBatchResolver {
             }
         }
         absorb(tonghuashun)
+        absorb(binance)
+        absorb(gate)
         return result
     }
 }
@@ -72,7 +79,8 @@ public enum SearchResolver {
     public static func resolve(
         query: String,
         tencent: [SearchHit]?,
-        eastMoney: [SearchHit]?
+        eastMoney: [SearchHit]?,
+        crypto: [SearchHit]? = nil
     ) -> [SearchHit] {
         var hits: [SearchHit] = []
         var seen = Set<SymbolID>()
@@ -84,6 +92,7 @@ public enum SearchResolver {
         }
         absorb(tencent)
         absorb(eastMoney)
+        absorb(crypto)
         if let alias = SearchRanker.aliasHit(for: query) {
             absorb([alias])
         }

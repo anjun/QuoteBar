@@ -36,7 +36,7 @@ struct WatchlistPanel: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.secondary)
-            TextField("搜索名称 / 代码 / 拼音，如 tx、pg、auusdo", text: Binding(
+            TextField("搜索名称 / 代码 / 拼音，如 tx、pg、btc", text: Binding(
                 get: { model.searchText },
                 set: { model.updateSearch($0) }
             ))
@@ -329,7 +329,7 @@ struct WatchlistPanel: View {
     private var footer: some View {
         HStack {
             Text(editingSymbol == nil
-                 ? (model.lastError ?? "每 \(Int(model.refreshSeconds)) 秒刷新  腾讯 / 东财 / 新浪 / 同花顺")
+                 ? (model.lastError ?? "每 \(Int(model.refreshSeconds)) 秒刷新  腾讯 / 东财 / 新浪 / 同花顺 / 币安")
                  : "拖动排序，任意处右击确认")
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)

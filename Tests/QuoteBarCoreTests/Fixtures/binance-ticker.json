@@ -1,0 +1,14 @@
+[
+  {
+    "symbol": "BTCUSDT",
+    "lastPrice": "80000.00",
+    "priceChange": "2000.00",
+    "priceChangePercent": "2.564"
+  },
+  {
+    "symbol": "ETHUSDT",
+    "lastPrice": "2500.00",
+    "priceChange": "50.00",
+    "priceChangePercent": "2.041"
+  }
+]

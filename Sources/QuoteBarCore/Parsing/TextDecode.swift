@@ -46,3 +46,21 @@ enum TextDecode {
         return Double(trimmed)
     }
 }
+
+struct JSONDouble: Decodable {
+    var value: Double
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let double = try? container.decode(Double.self) {
+            value = double
+        } else if let string = try? container.decode(String.self), let double = TextDecode.double(string) {
+            value = double
+        } else {
+            throw DecodingError.typeMismatch(
+                Double.self,
+                .init(codingPath: decoder.codingPath, debugDescription: "Not a number")
+            )
+        }
+    }
+}

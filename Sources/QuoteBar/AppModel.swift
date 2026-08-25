@@ -207,10 +207,14 @@ final class AppModel: ObservableObject {
 
 enum QuoteFormat {
     static func price(_ value: Double) -> String {
-        if abs(value) >= 1000 {
+        let magnitude = abs(value)
+        if magnitude >= 1000 {
             return String(format: "%.2f", value)
         }
-        if abs(value) < 10 {
+        if magnitude < 0.01 {
+            return String(format: "%.6f", value)
+        }
+        if magnitude < 10 {
             return String(format: "%.3f", value)
         }
         return String(format: "%.2f", value)

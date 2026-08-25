@@ -13,8 +13,9 @@ public struct QuoteService: Sendable {
         guard !symbols.isEmpty else { return [:] }
         let usPhase = MarketSession.phase(.us)
         let overlayExtended = usPhase == .preMarket || usPhase == .afterHours
+        let cryptoSymbols = symbols.filter { $0.market == .crypto }
         let thsSymbols = symbols.filter { ProviderCodes.tonghuashunTimeCode($0) != nil }
-        let rest = symbols.filter { ProviderCodes.tonghuashunTimeCode($0) == nil }
+        let rest = symbols.filter { $0.market != .crypto && ProviderCodes.tonghuashunTimeCode($0) == nil }
         let tencent = rest.isEmpty ? nil : try? await fetchTencent(rest)
         let missingAfterTencent = rest.filter { tencent?[$0] == nil }
         let eastMoney = missingAfterTencent.isEmpty ? nil : try? await fetchEastMoney(missingAfterTencent)
@@ -26,12 +27,17 @@ public struct QuoteService: Sendable {
         }
         let sina = sinaTargets.isEmpty ? nil : try? await fetchSina(sinaTargets, phase: usPhase)
         let tonghuashun = thsSymbols.isEmpty ? nil : try? await fetchTonghuashun(thsSymbols)
+        let binance = cryptoSymbols.isEmpty ? nil : try? await fetchBinance(cryptoSymbols)
+        let missingCrypto = cryptoSymbols.filter { binance?[$0] == nil }
+        let gate = missingCrypto.isEmpty ? nil : try? await fetchGate(missingCrypto)
         return QuoteBatchResolver.resolve(
             symbols: symbols,
             tencent: tencent,
             eastMoney: eastMoney,
             sina: sina,
             tonghuashun: tonghuashun,
+            binance: binance,
+            gate: gate,
             sinaOverlaysExisting: overlayExtended
         )
     }
@@ -41,9 +47,11 @@ public struct QuoteService: Sendable {
         guard !trimmed.isEmpty else { return [] }
         async let tencentResult = fetchTencentSearch(trimmed)
         async let eastMoneyResult = fetchEastMoneySearch(trimmed)
+        async let cryptoResult = fetchCryptoSearch(trimmed)
         let tencent = try? await tencentResult
         let eastMoney = try? await eastMoneyResult
-        return SearchResolver.resolve(query: trimmed, tencent: tencent, eastMoney: eastMoney)
+        let crypto = await cryptoResult
+        return SearchResolver.resolve(query: trimmed, tencent: tencent, eastMoney: eastMoney, crypto: crypto)
     }
 
     func fetchTencent(_ symbols: [SymbolID]) async throws -> [SymbolID: Quote] {
@@ -114,6 +122,92 @@ public struct QuoteService: Sendable {
         return result
     }
 
+    func fetchBinance(_ symbols: [SymbolID]) async throws -> [SymbolID: Quote] {
+        let codes = symbols.compactMap(ProviderCodes.binanceSymbol)
+        guard !codes.isEmpty else { return [:] }
+        if let parsed = try? await fetchBinanceTicker(codes), !parsed.isEmpty {
+            return rekey(parsed, to: symbols) { ProviderCodes.binanceSymbol($0) }
+        }
+        var result: [SymbolID: Quote] = [:]
+        for symbol in symbols {
+            guard let code = ProviderCodes.binanceSymbol(symbol) else { continue }
+            guard let parsed = try? await fetchBinanceTicker([code]) else { continue }
+            if var quote = parsed.first {
+                quote.symbol = symbol
+                result[symbol] = quote
+            }
+        }
+        return result
+    }
+
+    func fetchBinanceTicker(_ codes: [String]) async throws -> [Quote] {
+        let payload = "[" + codes.map { "\"\($0)\"" }.joined(separator: ",") + "]"
+        let hosts = [
+            "https://api.binance.com",
+            "https://data-api.binance.vision",
+        ]
+        var lastError: Error = QuoteServiceError.empty
+        for host in hosts {
+            do {
+                let url = try urlWithQuery("\(host)/api/v3/ticker/24hr", query: ["symbols": payload])
+                let data = try await get(url, headers: [:])
+                let parsed = try BinanceQuoteParser.parse(data)
+                if !parsed.isEmpty {
+                    return parsed
+                }
+            } catch {
+                lastError = error
+            }
+        }
+        throw lastError
+    }
+
+    func fetchGate(_ symbols: [SymbolID]) async throws -> [SymbolID: Quote] {
+        var result: [SymbolID: Quote] = [:]
+        for symbol in symbols {
+            guard let pair = ProviderCodes.gateCurrencyPair(symbol) else { continue }
+            let url = try urlWithQuery(
+                "https://api.gateio.ws/api/v4/spot/tickers",
+                query: ["currency_pair": pair]
+            )
+            do {
+                let data = try await get(url, headers: [:])
+                if var quote = try GateQuoteParser.parse(data).first {
+                    quote.symbol = symbol
+                    result[symbol] = quote
+                }
+            } catch {
+                continue
+            }
+        }
+        return result
+    }
+
+    func fetchCryptoSearch(_ query: String) async -> [SearchHit] {
+        var hits = CryptoCatalog.hits(matching: query)
+        var seen = Set(hits.map(\.symbol))
+        if let ticker = CryptoCatalog.normalizeTicker(query),
+           ticker.count >= 3,
+           ticker.contains(where: \.isLetter),
+           seen.insert(SymbolID.crypto(ticker)).inserted {
+            if let remote = await probeCryptoTicker(ticker) {
+                hits.append(remote)
+            }
+        }
+        return hits
+    }
+
+    func probeCryptoTicker(_ ticker: String) async -> SearchHit? {
+        let symbol = SymbolID.crypto(ticker)
+        if let quotes = try? await fetchBinance([symbol]), quotes[symbol] != nil {
+            return CryptoCatalog.searchHit(for: ticker)
+        }
+        if let quotes = try? await fetchGate([symbol]), quotes[symbol] != nil {
+            return CryptoCatalog.searchHit(for: ticker)
+        }
+        return nil
+    }
+
     func fetchTencentSearch(_ query: String) async throws -> [SearchHit] {
         let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
         let url = try url("https://smartbox.gtimg.cn/s3/?v=2&q=\(encoded)&t=all")
@@ -149,6 +243,13 @@ public struct QuoteService: Sendable {
 
     func url(_ string: String) throws -> URL {
         guard let url = URL(string: string) else { throw QuoteServiceError.badURL }
+        return url
+    }
+
+    func urlWithQuery(_ string: String, query: [String: String]) throws -> URL {
+        guard var components = URLComponents(string: string) else { throw QuoteServiceError.badURL }
+        components.queryItems = query.map { URLQueryItem(name: $0.key, value: $0.value) }
+        guard let url = components.url else { throw QuoteServiceError.badURL }
         return url
     }
 

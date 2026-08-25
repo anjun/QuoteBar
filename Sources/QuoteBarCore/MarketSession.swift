@@ -51,6 +51,8 @@ public enum MarketSession {
             return domesticFuturesPhase(weekday: weekday, minutes: minutes)
         case .metal:
             return metalPhase(weekday: weekday, minutes: minutes)
+        case .crypto:
+            return .regular
         }
     }
 
@@ -62,6 +64,8 @@ public enum MarketSession {
             return TimeZone(identifier: "Asia/Hong_Kong") ?? .current
         case .us, .metal:
             return TimeZone(identifier: "America/New_York") ?? .current
+        case .crypto:
+            return TimeZone(identifier: "UTC") ?? .current
         }
     }
 

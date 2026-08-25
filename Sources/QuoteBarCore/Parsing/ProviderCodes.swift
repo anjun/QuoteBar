@@ -8,6 +8,7 @@ public enum ProviderCodes {
         case .hk: return "hk\(symbol.code)"
         case .us: return "us\(symbol.code)"
         case .metal: return "hf_\(symbol.code)"
+        case .crypto: return "crypto_\(symbol.code)"
         case .qh:
             if let hf = internationalHFCode[symbol.code.uppercased()] {
                 return "hf_\(hf)"
@@ -28,7 +29,7 @@ public enum ProviderCodes {
             case .us:
                 let code = symbol.code == "DJI" ? "DJIA" : symbol.code
                 return "100.\(code)"
-            case .qh, .metal:
+            case .qh, .metal, .crypto:
                 break
             }
         }
@@ -44,6 +45,8 @@ public enum ProviderCodes {
         case .qh:
             let marketNo = symbol.quoteMarket ?? quoteMarket(forFuturesCode: symbol.code) ?? 113
             return "\(marketNo).\(symbol.code)"
+        case .crypto:
+            return "crypto.\(symbol.code)"
         }
     }
 
@@ -76,7 +79,27 @@ public enum ProviderCodes {
                 return "nf_\(nf)"
             }
             return nil
+        case .crypto:
+            return nil
         }
+    }
+
+    public static func binanceSymbol(_ symbol: SymbolID) -> String? {
+        guard symbol.market == .crypto else { return nil }
+        return "\(symbol.code.uppercased())USDT"
+    }
+
+    public static func gateCurrencyPair(_ symbol: SymbolID) -> String? {
+        guard symbol.market == .crypto else { return nil }
+        return "\(symbol.code.uppercased())_USDT"
+    }
+
+    public static func cryptoCode(fromBinanceSymbol raw: String) -> String? {
+        CryptoCatalog.normalizeTicker(raw)
+    }
+
+    public static func cryptoCode(fromGatePair raw: String) -> String? {
+        CryptoCatalog.normalizeTicker(raw)
     }
 
     /// 同花顺分时代码，如伦敦金现 `218_AUUSDO`。没有对应页则返回 nil。

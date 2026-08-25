@@ -68,13 +68,18 @@ public enum SearchRanker {
 
     public static func aliasHit(for query: String) -> SearchHit? {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let coin = CryptoCatalog.match(trimmed) {
+            return SearchHit(symbol: .crypto(coin.code), name: coin.name, pinyin: coin.pinyin)
+        }
         return aliasHits[trimmed.lowercased()] ?? aliasHits[trimmed]
     }
 
     public static func rank(_ hits: [SearchHit], query: String) -> [SearchHit] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return hits }
-        let alias = aliases[trimmed.lowercased()] ?? aliases[trimmed]
+        let alias = CryptoCatalog.match(trimmed).map { SymbolID.crypto($0.code) }
+            ?? aliases[trimmed.lowercased()]
+            ?? aliases[trimmed]
         return hits.enumerated().sorted { lhs, rhs in
             let l = score(lhs.element, query: trimmed, alias: alias)
             let r = score(rhs.element, query: trimmed, alias: alias)
