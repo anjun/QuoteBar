@@ -187,15 +187,7 @@ struct WatchlistPanel: View {
                     }
             }
 
-            Button {
-                if editingSymbol != nil, editingSymbol != symbol {
-                    editingSymbol = nil
-                }
-                model.togglePin(symbol)
-            } label: {
-                body
-            }
-            .buttonStyle(.plain)
+            body
 
             if editingThis {
                 HStack(spacing: 2) {

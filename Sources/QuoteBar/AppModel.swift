@@ -148,14 +148,6 @@ final class AppModel: ObservableObject {
         persistPin()
     }
 
-    func togglePin(_ symbol: SymbolID) {
-        if pinnedSymbol == symbol {
-            unpin()
-        } else {
-            pin(symbol)
-        }
-    }
-
     func updateSearch(_ text: String) {
         searchText = text
         searchTask?.cancel()
