@@ -9,6 +9,7 @@ struct QuoteBarApp: App {
     var body: some Scene {
         MenuBarExtra {
             WatchlistPanel(model: model)
+                .ignoresSafeArea()
         } label: {
             MenuBarLabel(model: model)
                 .onAppear {

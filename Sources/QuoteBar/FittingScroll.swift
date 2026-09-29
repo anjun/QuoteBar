@@ -13,6 +13,7 @@ struct FittingScroll<Content: View>: View {
         }
         .scrollIndicators(.automatic, axes: .vertical)
         .scrollBounceBehavior(.basedOnSize, axes: .vertical)
+        .contentMargins(.top, 0, for: .scrollContent)
         .frame(maxHeight: maxHeight)
         .fixedSize(horizontal: false, vertical: true)
     }

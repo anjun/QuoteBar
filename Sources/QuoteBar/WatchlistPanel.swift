@@ -22,10 +22,13 @@ struct WatchlistPanel: View {
         }
         .padding(12)
         .frame(width: QuoteTheme.panelWidth)
+        .frame(maxHeight: .infinity, alignment: .top)
         .background {
             Rectangle()
                 .fill(.background)
+                .ignoresSafeArea()
         }
+        .ignoresSafeArea()
         .overlay {
             if editingSymbol != nil {
                 RightClickCatcher(consume: true) {
