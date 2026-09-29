@@ -10,10 +10,14 @@ struct WatchlistPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             searchField
-            if !model.searchText.isEmpty {
-                searchResults
+            FittingScroll(maxHeight: PanelLayout.bodyHeightLimit(visibleHeight: MenuBarScreen.visibleHeight())) {
+                VStack(alignment: .leading, spacing: 10) {
+                    if !model.searchText.isEmpty {
+                        searchResults
+                    }
+                    watchlist
+                }
             }
-            watchlist
             footer
         }
         .padding(12)
