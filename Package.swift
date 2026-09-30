@@ -19,6 +19,11 @@ let package = Package(
             path: "Sources/QuoteBar"
         ),
         .testTarget(
+            name: "QuoteBarUITests",
+            dependencies: ["QuoteBar"],
+            path: "Tests/QuoteBarUITests"
+        ),
+        .testTarget(
             name: "QuoteBarCoreTests",
             dependencies: ["QuoteBarCore"],
             path: "Tests/QuoteBarCoreTests",

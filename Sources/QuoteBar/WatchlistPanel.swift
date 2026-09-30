@@ -27,6 +27,7 @@ struct WatchlistPanel: View {
             Rectangle()
                 .fill(.background)
                 .ignoresSafeArea()
+            PanelWindowBackground()
         }
         .ignoresSafeArea()
         .overlay {
@@ -343,5 +344,4 @@ struct WatchlistPanel: View {
         .padding(.top, 6)
     }
 }
-
 
