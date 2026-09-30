@@ -22,7 +22,7 @@ struct WatchlistPanel: View {
         }
         .padding(12)
         .frame(width: QuoteTheme.panelWidth)
-        .frame(maxHeight: .infinity, alignment: .top)
+        .fixedSize(horizontal: false, vertical: true)
         .background {
             Rectangle()
                 .fill(.background)
@@ -344,4 +344,3 @@ struct WatchlistPanel: View {
         .padding(.top, 6)
     }
 }
-
