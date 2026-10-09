@@ -20,10 +20,12 @@ import Testing
         defer: false
     )
     defer { panel.close() }
-    // A plain container keeps the window size decoupled from the hosting
-    // view's fitting size, like the real MenuBarExtra host.
+    let fitted = NSHostingView(rootView: WatchlistPanel(model: model)).fittingSize.height
+    // Like the real MenuBarExtra host: the window size is decoupled from the
+    // content, and the hosting view reports a zero fitting size.
     let container = NSView(frame: NSRect(x: 0, y: 0, width: 400, height: 900))
     let host = NSHostingView(rootView: WatchlistPanel(model: model))
+    host.sizingOptions = []
     host.translatesAutoresizingMaskIntoConstraints = false
     container.addSubview(host)
     panel.contentView = container
@@ -36,7 +38,7 @@ import Testing
     container.layoutSubtreeIfNeeded()
     await Task.yield()
 
-    let fitted = host.fittingSize.height
+    #expect(host.fittingSize.height == 0, "Fixture must not expose the content size via the host")
     #expect(fitted > 100, "Fixture should produce a measurable panel")
     #expect(abs(panel.contentRect(forFrameRect: panel.frame).height - fitted) < 2,
             "Attaching must already shrink an oversized host window to the content")

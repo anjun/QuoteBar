@@ -15,7 +15,7 @@ struct PanelWindowBackground: NSViewRepresentable {
 
     final class BackgroundAnchor: NSView {
         private var resizeObserver: NSObjectProtocol?
-        private var isFitting = false
+        private var fitPending = false
 
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
@@ -51,39 +51,31 @@ struct PanelWindowBackground: NSViewRepresentable {
             if window.backgroundColor != .windowBackgroundColor {
                 window.backgroundColor = .windowBackgroundColor
             }
-            fit(window)
+            // Resizing the window during layout loops AppKit's constraint pass.
+            guard !fitPending else { return }
+            fitPending = true
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.fitPending = false
+                self.fit()
+            }
         }
 
-        private func fit(_ window: NSWindow) {
-            guard !isFitting, let hosting = hostingView() else { return }
-            let fitting = hosting.fittingSize.height
+        /// The anchor backs the panel root, so its height is the content height.
+        /// MenuBarExtra's hosting view reports a zero `fittingSize`, so it
+        /// cannot be asked for the content size.
+        private func fit() {
+            guard let window, let root = window.contentView else { return }
+            let fitting = bounds.height
             guard fitting.isFinite, fitting > 0 else { return }
             // Never extend past the screen's visible area.
             let screenCap = window.screen.map { $0.visibleFrame.height - 12 } ?? .infinity
-            let desired = min(fitting, screenCap)
-            let current = window.contentRect(forFrameRect: window.frame).height
-            guard abs(current - desired) > 0.5 else { return }
-            let newHeight = window.frameRect(forContentRect: NSRect(
-                x: 0, y: 0, width: window.frame.width, height: desired
-            )).height
-            guard abs(newHeight - window.frame.height) > 0.5 else { return }
+            let excess = root.bounds.height - min(fitting, screenCap)
+            guard abs(excess) > 0.5 else { return }
             var frame = window.frame
-            frame.origin.y += frame.height - newHeight
-            frame.size.height = newHeight
-            isFitting = true
-            window.setFrame(frame, display: false, animate: false)
-            isFitting = false
-        }
-
-        private func hostingView() -> NSView? {
-            var view = superview
-            while let candidate = view {
-                if NSStringFromClass(type(of: candidate)).contains("HostingView") {
-                    return candidate
-                }
-                view = candidate.superview
-            }
-            return nil
+            frame.origin.y += excess
+            frame.size.height -= excess
+            window.setFrame(frame, display: true, animate: false)
         }
     }
 }
