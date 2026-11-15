@@ -6,6 +6,7 @@ struct WatchlistPanel: View {
     @ObservedObject var model: AppModel
     @Environment(\.colorScheme) private var colorScheme
     @State private var editingSymbol: SymbolID?
+    @State private var dropTarget: SymbolID?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -33,10 +34,11 @@ struct WatchlistPanel: View {
         .overlay {
             if editingSymbol != nil {
                 RightClickCatcher(consume: true) {
-                    editingSymbol = nil
+                    finishSorting()
                 }
             }
         }
+        .onDisappear { finishSorting() }
     }
 
     private var searchField: some View {
@@ -170,112 +172,96 @@ struct WatchlistPanel: View {
             .accessibilityLabel(text)
     }
 
+    @ViewBuilder
     private func quoteRow(_ symbol: SymbolID) -> some View {
         let quote = model.quotes[symbol]
         let sign = QuoteColorSign.of(change: quote?.change ?? 0)
         let ink = QuoteTheme.signed(sign, scheme: colorScheme)
-        let pinned = model.pinnedSymbol == symbol
-        let editingThis = editingSymbol == symbol
-        let body = quoteRowBody(symbol: symbol, quote: quote, sign: sign, ink: ink)
-
-        return HStack(spacing: 0) {
-            if editingThis {
-                Image(systemName: "line.3.horizontal")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 16, height: 28)
-                    .contentShape(Rectangle())
-                    .help("拖动排序")
-                    .draggable(WatchlistMoveToken(symbol)) {
-                        Text(quote?.name ?? symbol.code)
-                            .font(.system(size: 13, weight: .medium))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(.background, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                    }
-            }
-
-            body
-
-            if editingThis {
-                HStack(spacing: 2) {
-                    Button {
-                        model.move(symbol, by: -1)
-                    } label: {
-                        Image(systemName: "arrow.up")
-                            .font(.system(size: 10, weight: .semibold))
-                            .frame(width: 20, height: 22)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!model.canMove(symbol, by: -1))
-                    .foregroundStyle(model.canMove(symbol, by: -1) ? .primary : .tertiary)
-                    .help("上移")
-
-                    Button {
-                        model.move(symbol, by: 1)
-                    } label: {
-                        Image(systemName: "arrow.down")
-                            .font(.system(size: 10, weight: .semibold))
-                            .frame(width: 20, height: 22)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!model.canMove(symbol, by: 1))
-                    .foregroundStyle(model.canMove(symbol, by: 1) ? .primary : .tertiary)
-                    .help("下移")
-
-                    Button {
-                        model.remove(symbol)
-                        if editingSymbol == symbol { editingSymbol = nil }
-                    } label: {
-                        Image(systemName: "minus.circle")
-                            .font(.system(size: 12))
-                            .frame(width: 20, height: 22)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                    .help("从自选删除")
+        let selected = editingSymbol == symbol
+        let row = quoteRowBody(symbol: symbol, quote: quote, sign: sign, ink: ink)
+            .padding(.vertical, 5)
+            .padding(.trailing, 2)
+            .background {
+                if model.pinnedSymbol == symbol || selected {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.primary.opacity(0.06))
                 }
             }
-        }
-        .padding(.vertical, 5)
-        .padding(.trailing, 2)
-        .background {
-            if pinned || editingThis {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(Color.primary.opacity(0.06))
-            }
-        }
-        .dropDestination(for: WatchlistMoveToken.self) { tokens, _ in
-            guard let dragged = tokens.first?.symbol else { return false }
-            return model.move(dragged, before: symbol)
-        }
-        .overlay {
-            if editingSymbol == nil {
-                RightClickCatcher {
+            .contentShape(Rectangle())
+
+        if editingSymbol != nil {
+            row
+                .contentShape(.dragPreview, RoundedRectangle(cornerRadius: 6))
+                .draggable(WatchlistMoveToken(symbol)) {
+                    quoteRowBody(symbol: symbol, quote: quote, sign: sign, ink: ink)
+                        .padding(.vertical, 5)
+                        .padding(.horizontal, 6)
+                        .frame(width: QuoteTheme.panelWidth - 24)
+                        .background(.background, in: RoundedRectangle(cornerRadius: 6))
+                }
+                .dropDestination(for: WatchlistMoveToken.self) { tokens, _ in
+                    dropTarget = nil
+                    guard editingSymbol != nil, tokens.count == 1,
+                          let dragged = tokens.first?.symbol else { return false }
+                    let moved = withAnimation(.easeInOut(duration: 0.15)) {
+                        model.move(dragged, to: symbol)
+                    }
+                    if moved { editingSymbol = dragged }
+                    return moved
+                } isTargeted: { targeted in
+                    if targeted { dropTarget = symbol }
+                    else if dropTarget == symbol { dropTarget = nil }
+                }
+                .overlay {
+                    if dropTarget == symbol {
+                        RoundedRectangle(cornerRadius: 6)
+                            .strokeBorder(Color.accentColor, lineWidth: 1.5)
+                            .allowsHitTesting(false)
+                    }
+                }
+                .onTapGesture { editingSymbol = symbol }
+                .help("拖动整行可在同一分组内排序")
+        } else {
+            row.overlay {
+                RightClickCatcher(consume: true) {
                     editingSymbol = symbol
                 }
             }
         }
-        .contextMenu {
-            if pinned {
-                Button("取消固定") { model.unpin() }
-            } else {
-                Button("固定到状态栏") { model.pin(symbol) }
+    }
+
+    private func finishSorting() {
+        editingSymbol = nil
+        dropTarget = nil
+    }
+
+    @ViewBuilder
+    private var sortingActions: some View {
+        if let symbol = editingSymbol {
+            Menu {
+                if model.pinnedSymbol == symbol {
+                    Button("取消固定") { model.unpin() }
+                } else {
+                    Button("固定到状态栏") { model.pin(symbol) }
+                }
+                Button("检查更新") {
+                    Task { await AppUpdater.check(interactive: true) }
+                }
+                Divider()
+                Button("删除", role: .destructive) {
+                    model.remove(symbol)
+                    finishSorting()
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
             }
-            Button("上移") { model.move(symbol, by: -1) }
-                .disabled(!model.canMove(symbol, by: -1))
-            Button("下移") { model.move(symbol, by: 1) }
-                .disabled(!model.canMove(symbol, by: 1))
-            Divider()
-            Button("完成") { editingSymbol = nil }
-            Button("检查更新") {
-                Task { await AppUpdater.check(interactive: true) }
-            }
-            Divider()
-            Button("删除", role: .destructive) {
-                model.remove(symbol)
-                if editingSymbol == symbol { editingSymbol = nil }
-            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("\(model.quotes[symbol]?.name ?? symbol.code)：固定、删除等操作")
+            .accessibilityLabel("选中行情的操作")
+            Button("完成") { finishSorting() }
+                .buttonStyle(.plain)
+                .keyboardShortcut(.cancelAction)
         }
     }
 
@@ -292,7 +278,10 @@ struct WatchlistPanel: View {
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
-                    if symbol.market.family == .us, let label = MarketSession.phase(.us).label {
+                    if let darkPool = quote?.darkPool {
+                        sessionBadge("暗盘")
+                            .help(darkPool.detail)
+                    } else if symbol.market.family == .us, let label = MarketSession.phase(.us).label {
                         sessionBadge(label)
                     }
                     if model.pinnedSymbol == symbol {
@@ -330,10 +319,11 @@ struct WatchlistPanel: View {
         HStack {
             Text(editingSymbol == nil
                  ? (model.lastError ?? "每 \(Int(model.refreshSeconds)) 秒刷新  腾讯 / 东财 / 新浪 / 同花顺 / 币安")
-                 : "拖动排序，任意处右击确认")
+                 : "同一分组内拖动整行，右击完成")
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
             Spacer()
+            sortingActions
             Button("退出") {
                 NSApplication.shared.terminate(nil)
             }

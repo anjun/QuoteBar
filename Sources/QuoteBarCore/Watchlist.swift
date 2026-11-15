@@ -51,6 +51,18 @@ public struct Watchlist: Equatable, Codable, Sendable {
         })
         items = MarketFamily.allCases.flatMap { buckets[$0] ?? [] }
     }
+
+    /// Drop onto a row's current position, keeping market groups and symbol identities intact.
+    @discardableResult
+    public mutating func move(_ symbol: SymbolID, to target: SymbolID) -> Bool {
+        guard symbol != target, symbol.market.family == target.market.family else { return false }
+        let family = symbol.market.family
+        let group = items.filter { $0.market.family == family }
+        guard let from = group.firstIndex(of: symbol),
+              let to = group.firstIndex(of: target) else { return false }
+        move(in: family, from: IndexSet(integer: from), to: to > from ? to + 1 : to)
+        return true
+    }
 }
 
 private extension Array {

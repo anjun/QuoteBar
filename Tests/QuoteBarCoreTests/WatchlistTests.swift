@@ -65,6 +65,44 @@ import Testing
     #expect(list.items.isEmpty)
 }
 
+@Test func draggingRowsMovesBothDirectionsIncludingFirstAndLast() {
+    let first = SymbolID.shStock("600519")
+    let middle = SymbolID.szStock("300308")
+    let last = SymbolID.shETF("510300")
+    let hongKong = SymbolID.hkStock("00700")
+    var list = Watchlist(items: [first, middle, last, hongKong])
+
+    let movedToLast = list.move(first, to: last)
+    #expect(movedToLast)
+    #expect(list.items == [middle, last, first, hongKong])
+    let movedToFirst = list.move(first, to: middle)
+    #expect(movedToFirst)
+    #expect(list.items == [first, middle, last, hongKong])
+    let movedDownOne = list.move(first, to: middle)
+    #expect(movedDownOne)
+    #expect(list.items == [middle, first, last, hongKong])
+    let movedUpOne = list.move(first, to: middle)
+    #expect(movedUpOne)
+    #expect(list.items == [first, middle, last, hongKong])
+}
+
+@Test func draggingRejectsOtherGroupsMissingRowsAndSameRowWithoutChanges() {
+    let first = SymbolID.szStock("300308")
+    let hongKong = SymbolID.hkStock("00700")
+    let missing = SymbolID.szStock("000001")
+    let original = Watchlist(items: [first, hongKong])
+    var list = original
+    let sameRow = list.move(first, to: first)
+    #expect(!sameRow)
+    let otherGroup = list.move(first, to: hongKong)
+    #expect(!otherGroup)
+    let missingSource = list.move(missing, to: first)
+    #expect(!missingSource)
+    let missingTarget = list.move(first, to: missing)
+    #expect(!missingTarget)
+    #expect(list == original)
+}
+
 @Test func firstLaunchSeedsWhenKeyMissingEmptyAfterUserClears() {
     let suite = "QuoteBarTests.\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suite)!

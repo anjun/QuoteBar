@@ -146,14 +146,16 @@ public struct Quote: Equatable, Sendable {
     public var change: Double
     public var changePercent: Double
     public var source: QuoteSource
+    public var darkPool: DarkPoolInfo?
 
-    public init(symbol: SymbolID, name: String, last: Double, change: Double, changePercent: Double, source: QuoteSource) {
+    public init(symbol: SymbolID, name: String, last: Double, change: Double, changePercent: Double, source: QuoteSource, darkPool: DarkPoolInfo? = nil) {
         self.symbol = symbol
         self.name = name
         self.last = last
         self.change = change
         self.changePercent = changePercent
         self.source = source
+        self.darkPool = darkPool
     }
 
     public var shortDisplayName: String {

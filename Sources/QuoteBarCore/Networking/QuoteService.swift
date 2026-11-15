@@ -3,15 +3,16 @@ import Foundation
 public struct QuoteService: Sendable {
     public var session: URLSession
     public var timeout: TimeInterval
+    let darkPoolCache = SinaDarkPoolCache()
 
     public init(session: URLSession = .shared, timeout: TimeInterval = 8) {
         self.session = session
         self.timeout = timeout
     }
 
-    public func quotes(for symbols: [SymbolID]) async -> [SymbolID: Quote] {
+    public func quotes(for symbols: [SymbolID], at date: Date = Date()) async -> [SymbolID: Quote] {
         guard !symbols.isEmpty else { return [:] }
-        let usPhase = MarketSession.phase(.us)
+        let usPhase = MarketSession.phase(.us, at: date)
         let overlayExtended = usPhase == .preMarket || usPhase == .afterHours
         let cryptoSymbols = symbols.filter { $0.market == .crypto }
         let thsSymbols = symbols.filter { ProviderCodes.tonghuashunTimeCode($0) != nil }
@@ -25,12 +26,12 @@ public struct QuoteService: Sendable {
             }
             return tencent?[id] == nil && eastMoney?[id] == nil && !id.isUSIndex
         }
-        let sina = sinaTargets.isEmpty ? nil : try? await fetchSina(sinaTargets, phase: usPhase)
+        let sina = sinaTargets.isEmpty ? nil : try? await fetchSina(sinaTargets, phase: usPhase, at: date)
         let tonghuashun = thsSymbols.isEmpty ? nil : try? await fetchTonghuashun(thsSymbols)
         let binance = cryptoSymbols.isEmpty ? nil : try? await fetchBinance(cryptoSymbols)
         let missingCrypto = cryptoSymbols.filter { binance?[$0] == nil }
         let gate = missingCrypto.isEmpty ? nil : try? await fetchGate(missingCrypto)
-        return QuoteBatchResolver.resolve(
+        let regular = QuoteBatchResolver.resolve(
             symbols: symbols,
             tencent: tencent,
             eastMoney: eastMoney,
@@ -40,6 +41,7 @@ public struct QuoteService: Sendable {
             gate: gate,
             sinaOverlaysExisting: overlayExtended
         )
+        return await overlayDarkPool(on: regular, at: date)
     }
 
     public func search(_ query: String) async -> [SearchHit] {
@@ -88,7 +90,7 @@ public struct QuoteService: Sendable {
         throw lastError
     }
 
-    func fetchSina(_ symbols: [SymbolID], phase: MarketSessionPhase = .regular) async throws -> [SymbolID: Quote] {
+    func fetchSina(_ symbols: [SymbolID], phase: MarketSessionPhase = .regular, at date: Date = Date()) async throws -> [SymbolID: Quote] {
         let codes = symbols.compactMap { ProviderCodes.sinaListCode($0, phase: phase) }
         guard !codes.isEmpty else { return [:] }
         let url = try url("https://hq.sinajs.cn/list=\(codes.joined(separator: ","))")
@@ -96,7 +98,7 @@ public struct QuoteService: Sendable {
         guard let body = TextDecode.string(from: data, preferringGBK: true) else {
             throw QuoteServiceError.decode
         }
-        return rekey(SinaQuoteParser.parse(body), to: symbols) {
+        return rekey(SinaQuoteParser.parse(body, at: date), to: symbols) {
             ProviderCodes.sinaListCode($0, phase: phase)
         }
     }

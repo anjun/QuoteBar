@@ -114,26 +114,9 @@ final class AppModel: ObservableObject {
         persist()
     }
 
-    func move(_ symbol: SymbolID, by offset: Int) {
-        watchlist.move(symbol, by: offset)
-        persist()
-    }
-
-    func canMove(_ symbol: SymbolID, by offset: Int) -> Bool {
-        let group = watchlist.items.filter { $0.market.family == symbol.market.family }
-        guard let index = group.firstIndex(of: symbol) else { return false }
-        return group.indices.contains(index + offset)
-    }
-
     @discardableResult
-    func move(_ symbol: SymbolID, before target: SymbolID) -> Bool {
-        guard symbol != target, symbol.market.family == target.market.family else { return false }
-        let family = symbol.market.family
-        let group = watchlist.items.filter { $0.market.family == family }
-        guard let from = group.firstIndex(of: symbol),
-              let to = group.firstIndex(of: target) else { return false }
-        let destination = to > from ? to + 1 : to
-        watchlist.move(in: family, from: IndexSet(integer: from), to: destination)
+    func move(_ symbol: SymbolID, to target: SymbolID) -> Bool {
+        guard watchlist.move(symbol, to: target) else { return false }
         persist()
         return true
     }
@@ -223,7 +206,8 @@ enum QuoteFormat {
     }
 
     static func menuBarTitle(_ quote: Quote, style: MenuBarTitleStyle = .full) -> String {
-        MenuBarTitle.text(name: quote.shortDisplayName, changePercent: quote.changePercent, style: style)
+        MenuBarTitle.text(name: quote.shortDisplayName, changePercent: quote.changePercent, style: style,
+                         isDarkPool: quote.darkPool != nil)
     }
 }
 

@@ -9,12 +9,13 @@ public enum MenuBarTitle {
     /// A CJK glyph is about twice as wide as a latin one, so the budget counts half-widths.
     public static let compactNameBudget = 4
 
-    public static func text(name: String, changePercent: Double, style: MenuBarTitleStyle) -> String {
+    public static func text(name: String, changePercent: Double, style: MenuBarTitleStyle, isDarkPool: Bool = false) -> String {
+        let badge = isDarkPool ? "·暗盘" : ""
         switch style {
         case .full:
-            return "\(name) \(percent(changePercent, decimals: 2))"
+            return "\(name)\(badge) \(percent(changePercent, decimals: 2))"
         case .compact:
-            return "\(shorten(name, budget: compactNameBudget)) \(percent(changePercent, decimals: 1))"
+            return "\(shorten(name, budget: compactNameBudget))\(badge) \(percent(changePercent, decimals: 1))"
         }
     }
 
