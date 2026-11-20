@@ -8,10 +8,14 @@ struct WatchlistPanel: View {
     @State private var editingSymbol: SymbolID?
     @State private var dropTarget: SymbolID?
 
+    private var panelVisibleHeight: CGFloat {
+        model.panelScreenVisibleHeight ?? MenuBarScreen.visibleHeight()
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             searchField
-            FittingScroll(maxHeight: PanelLayout.bodyHeightLimit(visibleHeight: MenuBarScreen.visibleHeight())) {
+            FittingScroll(maxHeight: PanelLayout.bodyHeightLimit(visibleHeight: panelVisibleHeight)) {
                 VStack(alignment: .leading, spacing: 10) {
                     if !model.searchText.isEmpty {
                         searchResults
@@ -28,7 +32,12 @@ struct WatchlistPanel: View {
             Rectangle()
                 .fill(.background)
                 .ignoresSafeArea()
-            PanelWindowBackground()
+            PanelWindowBackground(
+                renderedVisibleHeight: panelVisibleHeight,
+                hasExplicitScreenHeight: model.panelScreenVisibleHeight != nil
+            ) { height in
+                model.updatePanelScreenVisibleHeight(height)
+            }
         }
         .ignoresSafeArea()
         .overlay {

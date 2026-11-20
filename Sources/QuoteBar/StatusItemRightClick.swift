@@ -17,6 +17,13 @@ enum StatusItemRightClick {
             if event.type == .rightMouseUp {
                 return nil
             }
+            if event.type == .leftMouseDown {
+                let clickedScreen = MenuBarScreen.screen(containing: NSEvent.mouseLocation) ?? event.window?.screen
+                let height = clickedScreen?.visibleFrame.height
+                MainActor.assumeIsolated {
+                    target.model?.updatePanelScreenVisibleHeight(height)
+                }
+            }
             return event
         }
     }

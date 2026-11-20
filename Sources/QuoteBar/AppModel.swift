@@ -15,6 +15,7 @@ final class AppModel: ObservableObject {
     @Published var pinnedSymbol: SymbolID?
     @Published var titleStyle: MenuBarTitleStyle
     @Published var lastError: String?
+    @Published var panelScreenVisibleHeight: CGFloat?
 
     let service: QuoteService
     let defaults: UserDefaults
@@ -69,6 +70,14 @@ final class AppModel: ObservableObject {
     func toggleCompactTitle() {
         titleStyle = titleStyle == .compact ? .full : .compact
         MenuBarTitleStylePersistence.save(titleStyle, to: defaults)
+    }
+
+    func updatePanelScreenVisibleHeight(_ height: CGFloat?) {
+        guard let height, height.isFinite, height > 0 else { return }
+        if let current = panelScreenVisibleHeight, abs(current - height) <= 0.5 {
+            return
+        }
+        panelScreenVisibleHeight = height
     }
 
     func start() {

@@ -35,7 +35,7 @@ enum MenuBarScreen {
         return primary?.screen
     }
 
-    private static func screen(containing point: CGPoint) -> NSScreen? {
+    static func screen(containing point: CGPoint) -> NSScreen? {
         NSScreen.screens.first { $0.frame.contains(point) }
     }
 
