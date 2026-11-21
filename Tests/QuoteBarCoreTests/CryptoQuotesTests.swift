@@ -49,7 +49,7 @@ import Testing
 }
 
 @Test func searchBitcoinAliasPrefersCryptoOverUSETF() {
-    let etf = SearchHit(symbol: .usStock("BTC"), name: "Grayscale Bitcoin Mini Trust ET", pinyin: "btc")
+    let etf = SearchHit(symbol: .usStock("BTC"), name: "Grayscale Bitcoin Mini Trust ET")
     let ranked = SearchResolver.resolve(
         query: "btc",
         tencent: [],
@@ -62,15 +62,22 @@ import Testing
     #expect(ranked.contains { $0.symbol == etf.symbol })
 }
 
-@Test func searchChineseBitcoinNameHitsCrypto() {
-    let ranked = SearchResolver.resolve(query: "比特币", tencent: [], eastMoney: [])
-    #expect(ranked.first?.symbol == SymbolID.crypto("BTC"))
-    #expect(ranked.first?.name == "比特币")
+@Test func searchChineseAndEnglishBitcoinNameHitsCryptoCaseInsensitively() {
+    for query in ["比特币", "bitcoin", "Bitcoin", "BITCOIN", "BTC", "btc"] {
+        let ranked = SearchResolver.resolve(query: query, tencent: [], eastMoney: [])
+        #expect(ranked.first?.symbol == SymbolID.crypto("BTC"))
+        #expect(ranked.first?.name == "比特币")
+    }
+    #expect(CryptoCatalog.hits(matching: "btb").isEmpty)
+    #expect(CryptoCatalog.hits(matching: "bk").isEmpty)
 }
 
-@Test func searchEthereumJianpinAndTicker() {
+@Test func searchEthereumFullNameAndTickerWithoutJianpin() {
     #expect(SearchResolver.resolve(query: "eth", tencent: [], eastMoney: []).first?.symbol == SymbolID.crypto("ETH"))
+    #expect(SearchResolver.resolve(query: "ETH", tencent: [], eastMoney: []).first?.symbol == SymbolID.crypto("ETH"))
     #expect(SearchResolver.resolve(query: "以太坊", tencent: [], eastMoney: []).first?.symbol == SymbolID.crypto("ETH"))
+    #expect(SearchResolver.resolve(query: "Ethereum", tencent: [], eastMoney: []).first?.symbol == SymbolID.crypto("ETH"))
+    #expect(SearchResolver.resolve(query: "ytf", tencent: [], eastMoney: []).isEmpty)
 }
 
 @Test func providerCodesForCryptoPairs() {

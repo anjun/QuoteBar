@@ -118,8 +118,12 @@ import Testing
 }
 
 @Test func searchAuusdoCodeAliasHitsLondonGoldSpot() {
-    let ranked = SearchResolver.resolve(query: "auusdo", tencent: [], eastMoney: [])
-    #expect(ranked.first?.symbol == SymbolID.metal("AUUSDO"))
+    for query in ["auusdo", "AUUSDO", "Auusdo"] {
+        let ranked = SearchResolver.resolve(query: query, tencent: [], eastMoney: [])
+        #expect(ranked.first?.symbol == SymbolID.metal("AUUSDO"))
+    }
+    #expect(SearchResolver.resolve(query: "ldj", tencent: [], eastMoney: []).isEmpty)
+    #expect(SearchResolver.resolve(query: "ldjx", tencent: [], eastMoney: []).isEmpty)
 }
 
 @Test func searchLondonGoldMergesEastMoneyXAUButRanksAUUSDOFirst() throws {

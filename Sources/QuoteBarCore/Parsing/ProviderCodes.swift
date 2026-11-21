@@ -125,7 +125,7 @@ public enum ProviderCodes {
         }
     }
 
-    public static func market(fromEastMoney marketNumber: Int, code: String) -> SymbolID.Market {
+    public static func market(fromEastMoney marketNumber: Int, code: String) -> SymbolID.Market? {
         if marketNumber == 122 { return .metal }
         if futuresMarketNumbers.contains(marketNumber) { return .qh }
         switch marketNumber {
@@ -136,9 +136,10 @@ public enum ProviderCodes {
         case 100:
             let normalized = SymbolID.normalize(code, market: .us)
             if SymbolID.hkIndexCodes.contains(normalized) { return .hk }
-            return .us
+            if SymbolID.usIndexCodes.contains(normalized) { return .us }
+            return nil
         default:
-            return .sh
+            return nil
         }
     }
 

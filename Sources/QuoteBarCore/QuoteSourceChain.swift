@@ -83,10 +83,20 @@ public enum SearchResolver {
         crypto: [SearchHit]? = nil
     ) -> [SearchHit] {
         var hits: [SearchHit] = []
-        var seen = Set<SymbolID>()
+        var indexBySymbol: [SymbolID: Int] = [:]
         func absorb(_ batch: [SearchHit]?) {
             guard let batch else { return }
-            for hit in batch where seen.insert(hit.symbol).inserted {
+            for hit in batch where SearchRanker.matches(hit, query: query) {
+                if let existingIndex = indexBySymbol[hit.symbol] {
+                    let existing = hits[existingIndex]
+                    if existing.name.lowercased() == hit.name.lowercased(),
+                       existing.name == existing.name.lowercased(),
+                       hit.name != hit.name.lowercased() {
+                        hits[existingIndex] = hit
+                    }
+                    continue
+                }
+                indexBySymbol[hit.symbol] = hits.count
                 hits.append(hit)
             }
         }

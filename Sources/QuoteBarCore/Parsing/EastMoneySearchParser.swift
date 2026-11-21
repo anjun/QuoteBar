@@ -25,13 +25,16 @@ public enum EastMoneySearchParser {
             } else if isFuture {
                 market = .qh
             } else {
-                market = ProviderCodes.market(fromEastMoney: marketNo, code: code)
+                guard let mapped = ProviderCodes.market(fromEastMoney: marketNo, code: code) else {
+                    return nil
+                }
+                market = mapped
             }
             var symbol = SymbolID.classify(market: market, code: code, quoteMarket: marketNo)
             if typeName.contains("基金") || typeName.uppercased().contains("ETF") {
                 symbol.kind = .etf
             }
-            return SearchHit(symbol: symbol, name: name, pinyin: row.pinYin ?? "")
+            return SearchHit(symbol: symbol, name: name)
         }
     }
 }
@@ -55,7 +58,6 @@ struct EastMoneySuggestTable: Decodable {
 struct EastMoneySuggestRow: Decodable {
     var code: String?
     var name: String?
-    var pinYin: String?
     var quoteID: String?
     var mktNum: FlexibleInt?
     var securityTypeName: String?
@@ -66,7 +68,6 @@ struct EastMoneySuggestRow: Decodable {
     enum CodingKeys: String, CodingKey {
         case code = "Code"
         case name = "Name"
-        case pinYin = "PinYin"
         case quoteID = "QuoteID"
         case mktNum = "MktNum"
         case securityTypeName = "SecurityTypeName"

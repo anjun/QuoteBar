@@ -10,7 +10,9 @@ public enum EastMoneyQuoteParser {
         guard let last = row.f2, let percent = row.f3, let change = row.f4, let code = row.f12, let marketNo = row.f13 else {
             return nil
         }
-        let market = ProviderCodes.market(fromEastMoney: marketNo, code: code)
+        guard let market = ProviderCodes.market(fromEastMoney: marketNo, code: code) else {
+            return nil
+        }
         var symbol = SymbolID.classify(market: market, code: code, quoteMarket: marketNo)
         if marketNo == 107 || marketNo == 106, symbol.kind == .stock, SymbolID.usETFCodes.contains(symbol.code) {
             symbol = .usETF(symbol.code)

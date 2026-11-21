@@ -25,7 +25,7 @@ public enum TencentSearchParser {
                     symbol.kind = .index
                 }
             }
-            return SearchHit(symbol: symbol, name: parts[2], pinyin: parts[3])
+            return SearchHit(symbol: symbol, name: parts[2])
         }
     }
 }

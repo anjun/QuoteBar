@@ -104,8 +104,10 @@ final class AppModel: ObservableObject {
     func add(_ hit: SearchHit) {
         watchlist.add(hit.symbol)
         persist()
+        searchTask?.cancel()
         searchText = ""
         searchResults = []
+        isSearching = false
         Task { await refresh() }
     }
 
@@ -149,12 +151,14 @@ final class AppModel: ObservableObject {
             isSearching = false
             return
         }
+        searchResults = searchResults.filter { SearchRanker.matches($0, query: query) }
         isSearching = true
         searchTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 180_000_000)
             guard !Task.isCancelled else { return }
             let hits = await self?.service.search(query) ?? []
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled,
+                  self?.searchText.trimmingCharacters(in: .whitespacesAndNewlines) == query else { return }
             self?.searchResults = hits
             self?.isSearching = false
         }

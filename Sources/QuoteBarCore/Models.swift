@@ -191,11 +191,9 @@ public struct Quote: Equatable, Sendable {
 public struct SearchHit: Equatable, Sendable {
     public var symbol: SymbolID
     public var name: String
-    public var pinyin: String
 
-    public init(symbol: SymbolID, name: String, pinyin: String) {
+    public init(symbol: SymbolID, name: String) {
         self.symbol = symbol
         self.name = name
-        self.pinyin = pinyin
     }
 }

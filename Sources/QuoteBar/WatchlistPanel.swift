@@ -17,7 +17,7 @@ struct WatchlistPanel: View {
             searchField
             FittingScroll(maxHeight: PanelLayout.bodyHeightLimit(visibleHeight: panelVisibleHeight)) {
                 VStack(alignment: .leading, spacing: 10) {
-                    if !model.searchText.isEmpty {
+                    if !model.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         searchResults
                     }
                     watchlist
@@ -55,7 +55,7 @@ struct WatchlistPanel: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.secondary)
-            TextField("搜索名称 / 代码 / 拼音，如 tx、pg、btc", text: Binding(
+            TextField("搜索名称 / 代码，如 苹果、AAPL、BTC", text: Binding(
                 get: { model.searchText },
                 set: { model.updateSearch($0) }
             ))
