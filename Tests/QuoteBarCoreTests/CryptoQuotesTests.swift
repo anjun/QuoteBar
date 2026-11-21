@@ -139,6 +139,78 @@ import Testing
     #expect(hits.contains { $0.symbol == SymbolID.crypto("BCH") })
 }
 
+@Suite(.serialized)
+struct CryptoQuoteServiceUTC0Tests {
+    @Test func binanceAndGateFallbackUseUTC0TradingDayEndpoints() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [CryptoUTC0MockProtocol.self]
+        let service = QuoteService(session: URLSession(configuration: config), timeout: 2)
+        defer { service.session.invalidateAndCancel() }
+        CryptoUTC0MockProtocol.state.reset()
+
+        let quotes = await service.quotes(for: [.crypto("BTC"), .crypto("ETH")])
+
+        let btc = try #require(quotes[.crypto("BTC")])
+        #expect(btc.source == .binance)
+        #expect(btc.last == 55916.75)
+        #expect(btc.changePercent == -5.148)
+
+        let eth = try #require(quotes[.crypto("ETH")])
+        #expect(eth.source == .gate)
+        #expect(eth.last == 1566.03)
+        #expect(eth.changePercent == -5.16)
+
+        let urls = CryptoUTC0MockProtocol.state.capturedURLs()
+        let binanceURL = try #require(urls.first { $0.host == "data-api.binance.vision" })
+        let binanceItems = URLComponents(url: binanceURL, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        #expect(binanceURL.path == "/api/v3/ticker/tradingDay")
+        #expect(binanceItems.first { $0.name == "timeZone" }?.value == "0")
+
+        let gateURL = try #require(urls.first { $0.host == "api.gateio.ws" })
+        let gateItems = URLComponents(url: gateURL, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        #expect(gateURL.path == "/api/v4/spot/tickers")
+        #expect(gateItems.first { $0.name == "currency_pair" }?.value == "ETH_USDT")
+        #expect(gateItems.first { $0.name == "timezone" }?.value == "utc0")
+    }
+}
+
+private final class CryptoUTC0MockProtocol: URLProtocol, @unchecked Sendable {
+    static let state = State()
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        let url = request.url!
+        let (status, body) = Self.state.handle(url: url)
+        let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: nil, headerFields: nil)!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(body.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+
+    final class State: @unchecked Sendable {
+        private let lock = NSLock()
+        private var urls: [URL] = []
+
+        func reset() { lock.withLock { urls = [] } }
+        func capturedURLs() -> [URL] { lock.withLock { urls } }
+
+        func handle(url: URL) -> (Int, String) {
+            lock.withLock { urls.append(url) }
+            switch url.host {
+            case "data-api.binance.vision":
+                return (200, #"[{"symbol":"BTCUSDT","priceChange":"-3034.76","priceChangePercent":"-5.148","lastPrice":"55916.75"}]"#)
+            case "api.gateio.ws":
+                return (200, #"[{"currency_pair":"ETH_USDT","last":"1566.03","change_percentage":"-5.16"}]"#)
+            default:
+                return (404, "")
+            }
+        }
+    }
+}
+
 private let utc = TimeZone(identifier: "UTC")!
 
 private func weekday(tz: TimeZone, hour: Int, minute: Int) -> Date {

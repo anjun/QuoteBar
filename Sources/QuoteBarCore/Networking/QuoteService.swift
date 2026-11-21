@@ -152,7 +152,10 @@ public struct QuoteService: Sendable {
         var lastError: Error = QuoteServiceError.empty
         for host in hosts {
             do {
-                let url = try urlWithQuery("\(host)/api/v3/ticker/24hr", items: [("symbols", payload)])
+                let url = try urlWithQuery("\(host)/api/v3/ticker/tradingDay", items: [
+                    ("symbols", payload),
+                    ("timeZone", "0"),
+                ])
                 let data = try await get(url, headers: [:], timeout: timeout)
                 let parsed = try BinanceQuoteParser.parse(data)
                 if !parsed.isEmpty {
@@ -173,7 +176,10 @@ public struct QuoteService: Sendable {
             guard let pair = ProviderCodes.gateCurrencyPair(symbol) else { continue }
             let url = try urlWithQuery(
                 "https://api.gateio.ws/api/v4/spot/tickers",
-                items: [("currency_pair", pair)]
+                items: [
+                    ("currency_pair", pair),
+                    ("timezone", "utc0"),
+                ]
             )
             do {
                 let data = try await get(url, headers: [:], timeout: timeout)
