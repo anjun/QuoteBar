@@ -27,13 +27,34 @@ extension QuoteService {
                 snapshots.merge(SinaDarkPool.parse(body)) { _, new in new }
             } catch { continue }
         }
-        var result = regular
+        var selected: [(Quote, SinaDarkPoolSnapshot)] = []
         for quote in targets {
             let available = (candidates[quote.symbol] ?? []).compactMap { snapshots[$0.code] }
-                .filter { SinaDarkPool.matches(name: $0.info.name, code: $0.info.code, quote: quote) }
+                .filter { SinaDarkPool.matches(name: $0.info.name, code: $0.info.code, quote: quote, last: $0.last) }
             if let best = SinaDarkPool.best(available, at: date) {
-                result[quote.symbol] = best.overlay(quote)
+                selected.append((quote, best))
             }
+        }
+        let needBaseline = Array(Set(selected.compactMap { $0.1.info.isUTC0Baseline ? nil : $0.1.info.code })).sorted()
+        var utc0Baselines: [String: Double] = [:]
+        for offset in stride(from: 0, to: needBaseline.count, by: 4) {
+            let batch = Array(needBaseline[offset..<min(offset + 4, needBaseline.count)])
+            await withTaskGroup(of: (String, Double?).self) { group in
+                for code in batch {
+                    group.addTask { (code, await darkPoolUTC0Baseline(for: code, at: date)) }
+                }
+                for await (code, price) in group {
+                    if let price { utc0Baselines[code] = price }
+                }
+            }
+        }
+        var result = regular
+        for (quote, var best) in selected {
+            if !best.info.isUTC0Baseline, let baseline = utc0Baselines[best.info.code] {
+                best.previous = baseline
+                best.info.isUTC0Baseline = true
+            }
+            result[quote.symbol] = best.overlay(quote)
         }
         return result
     }
@@ -50,12 +71,46 @@ extension QuoteService {
             let data = try await get(url, headers: ["Referer": "https://finance.sina.com.cn/"])
             guard let body = TextDecode.string(from: data, preferringGBK: true),
                   body.contains("var suggestdata=") else { throw QuoteServiceError.decode }
-            let found = SinaDarkPool.candidates(body, matching: quote)
+            var found = SinaDarkPool.candidates(body, matching: quote)
+            // Short US tickers (e.g. MU) can crowd out btc_btc<ticker>usdt from Sina's top-50 search hits.
+            if !found.isEmpty, let usdtCode = SinaDarkPool.usdtProbeCode(for: quote.symbol),
+               !found.contains(where: { $0.code.caseInsensitiveCompare(usdtCode) == .orderedSame }) {
+                found.append(SinaDarkPoolCandidate(code: usdtCode, name: quote.name))
+            }
             await darkPoolCache.set(found, key: key, at: date)
             return found
         } catch {
             await darkPoolCache.set([], key: key, at: date, failed: true)
             return []
+        }
+    }
+
+    func darkPoolUTC0Baseline(for code: String, at date: Date) async -> Double? {
+        let dayStart = SinaDarkPool.utcDayStart(for: date)
+        let cacheKey = "\(code)|\(Int(dayStart.timeIntervalSince1970))"
+        if let cached = await darkPoolCache.baseline(for: cacheKey, at: date) {
+            return cached.price
+        }
+        let symbol = code.hasPrefix("btc_") ? String(code.dropFirst(4)) : code
+        do {
+            let url = try urlWithQuery(
+                "https://quotes.sina.cn/fx/api/openapi.php/BtcService.getMinKline",
+                items: [("symbol", symbol), ("scale", "60"), ("datalen", "36")]
+            )
+            let data = try await get(url, headers: ["Referer": "https://finance.sina.com.cn/"])
+            guard let parsed = SinaDarkPool.parseUTC0Baseline(data, at: date) else {
+                await darkPoolCache.setBaseline(nil, key: cacheKey, expiresAt: date.addingTimeInterval(60), at: date)
+                return nil
+            }
+            let nextRollover = dayStart.addingTimeInterval(86_400)
+            let expiresAt = (parsed.exact || date.timeIntervalSince(dayStart) >= 600)
+                ? nextRollover
+                : min(nextRollover, date.addingTimeInterval(60))
+            await darkPoolCache.setBaseline(parsed.price, key: cacheKey, expiresAt: expiresAt, at: date)
+            return parsed.price
+        } catch {
+            await darkPoolCache.setBaseline(nil, key: cacheKey, expiresAt: date.addingTimeInterval(60), at: date)
+            return nil
         }
     }
 }
