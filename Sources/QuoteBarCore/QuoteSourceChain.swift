@@ -8,6 +8,9 @@ public enum QuoteSourceChain {
         if ProviderCodes.tonghuashunTimeCode(symbol) != nil {
             return [.tonghuashun]
         }
+        if symbol.market == .hk {
+            return [.sina]
+        }
         if symbol.isUSIndex {
             return [.tencent, .eastMoney]
         }
@@ -29,9 +32,9 @@ public enum QuoteBatchResolver {
         var remaining = Set(symbols)
         var result: [SymbolID: Quote] = [:]
 
-        func absorb(_ batch: [SymbolID: Quote]?) {
+        func absorb(_ batch: [SymbolID: Quote]?, source: QuoteSource) {
             guard let batch else { return }
-            for id in remaining {
+            for id in remaining where QuoteSourceChain.sources(for: id).contains(source) {
                 if let quote = batch[id] {
                     result[id] = quote
                     remaining.remove(id)
@@ -39,8 +42,8 @@ public enum QuoteBatchResolver {
             }
         }
 
-        absorb(tencent)
-        absorb(eastMoney)
+        absorb(tencent, source: .tencent)
+        absorb(eastMoney, source: .eastMoney)
         if let sina {
             if sinaOverlaysExisting {
                 for id in symbols {
@@ -54,23 +57,18 @@ public enum QuoteBatchResolver {
                             changePercent: quote.changePercent,
                             source: quote.source
                         )
-                    } else {
+                    } else if QuoteSourceChain.sources(for: id).contains(.sina) || id.isUSIndex {
                         result[id] = quote
                     }
                     remaining.remove(id)
                 }
             } else {
-                for id in remaining where !id.isUSIndex {
-                    if let quote = sina[id] {
-                        result[id] = quote
-                        remaining.remove(id)
-                    }
-                }
+                absorb(sina, source: .sina)
             }
         }
-        absorb(tonghuashun)
-        absorb(binance)
-        absorb(gate)
+        absorb(tonghuashun, source: .tonghuashun)
+        absorb(binance, source: .binance)
+        absorb(gate, source: .gate)
         return result
     }
 }

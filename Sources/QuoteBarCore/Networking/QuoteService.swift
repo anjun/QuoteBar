@@ -16,11 +16,14 @@ public struct QuoteService: Sendable {
         let overlayExtended = usPhase == .preMarket || usPhase == .afterHours
         let cryptoSymbols = symbols.filter { $0.market == .crypto }
         let thsSymbols = symbols.filter { ProviderCodes.tonghuashunTimeCode($0) != nil }
-        let rest = symbols.filter { $0.market != .crypto && ProviderCodes.tonghuashunTimeCode($0) == nil }
+        let hkSymbols = symbols.filter { $0.market == .hk }
+        let rest = symbols.filter {
+            $0.market != .crypto && $0.market != .hk && ProviderCodes.tonghuashunTimeCode($0) == nil
+        }
         let tencent = rest.isEmpty ? nil : try? await fetchTencent(rest)
         let missingAfterTencent = rest.filter { tencent?[$0] == nil }
         let eastMoney = missingAfterTencent.isEmpty ? nil : try? await fetchEastMoney(missingAfterTencent)
-        let sinaTargets = rest.filter { id in
+        let sinaTargets = hkSymbols + rest.filter { id in
             if overlayExtended, id.market == .us {
                 return ProviderCodes.sinaListCode(id, phase: usPhase) != nil
             }
